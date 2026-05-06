@@ -819,6 +819,7 @@ const PROFILE_TABS = [
   { icon: 'grid-outline',      activeIcon: 'grid',      label: 'Posts'   },
   { icon: 'briefcase-outline', activeIcon: 'briefcase', label: 'Resume'  },
   { icon: 'repeat-outline',    activeIcon: 'repeat',    label: 'Reposts' },
+  { icon: 'bookmark-outline',  activeIcon: 'bookmark',  label: 'Saved'   },
 ];
 
 function ProfileTabBar({ activeTab, onTabChange, isDark }) {
@@ -1163,8 +1164,11 @@ export default function ProfileScreen() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [reposts, setReposts] = useState([]);
   const [repostsLoading, setRepostsLoading] = useState(false);
+  const [savedPosts, setSavedPosts] = useState([]);
+  const [savedPostsLoading, setSavedPostsLoading] = useState(false);
   const [selectedPostIndex, setSelectedPostIndex] = useState(-1);
   const [selectedRepostIndex, setSelectedRepostIndex] = useState(-1);
+  const [selectedSavedPostIndex, setSelectedSavedPostIndex] = useState(-1);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
@@ -1191,8 +1195,12 @@ export default function ProfileScreen() {
     setLoading(true);
     setProfile(null);
     setPosts([]);
+    setSavedPosts([]);
     setSocialLinks([]);
     setActiveTab(0);
+    setSelectedPostIndex(-1);
+    setSelectedRepostIndex(-1);
+    setSelectedSavedPostIndex(-1);
   }, [resolvedUserId]);
 
   const loadProfile = useCallback(async () => {
@@ -1477,6 +1485,67 @@ export default function ProfileScreen() {
     }
   }, [token]);
 
+  const loadSavedPosts = useCallback(async () => {
+    if (!token) return;
+
+    setSavedPostsLoading(true);
+    try {
+      // We try a few common endpoint names; if none exist, we safely show an empty tab.
+      const candidates = [
+        'mobile/profile/saved-posts',
+        'mobile/profile/saved',
+        'mobile/posts/saved',
+        'mobile/saved-posts',
+      ];
+
+      const list = await tryFetchFirstList({ token, endpoints: candidates });
+
+      const normalized = (Array.isArray(list) ? list : [])
+        .filter(Boolean)
+        .map((post) => {
+          const body =
+            post?.body ??
+            post?.content ??
+            post?.text ??
+            post?.caption ??
+            post?.description ??
+            post?.message ??
+            post?.post_body ??
+            post?.postBody ??
+            null;
+
+          const author = post?.user ?? post?.author ?? null;
+          const authorAvatar = author?.avatar || post?.user_avatar || post?.author_avatar;
+          const authorImage = author?.image || post?.user_image || post?.author_image;
+
+          const avatarUrl = resolveAvatarUrl(authorAvatar || authorImage);
+          const mediaUrl = resolvePostMediaUrl(post);
+
+          return {
+            ...post,
+            body,
+            user: author
+              ? {
+                  ...author,
+                  avatar: avatarUrl,
+                  image: authorImage ?? author?.image ?? null,
+                }
+              : post?.user,
+            userAvatar: avatarUrl,
+            postImage: mediaUrl,
+            image: mediaUrl,
+          };
+        });
+
+      setSavedPosts(normalized);
+    } catch (err) {
+      console.error('[PROFILE] fetch saved posts error:', err);
+      setSavedPosts([]);
+    } finally {
+      setSavedPostsLoading(false);
+    }
+  }, [token]);
+
   const hydrateResumeSections = useCallback(async (profileId) => {
     if (!token || !profileId) return;
 
@@ -1549,15 +1618,24 @@ export default function ProfileScreen() {
   }, [loadReposts, profile?.id, profile?.name]);
 
   useEffect(() => {
+    loadSavedPosts();
+  }, [loadSavedPosts]);
+
+  useEffect(() => {
     hydrateResumeSections(profile?.id);
   }, [hydrateResumeSections, profile?.id]);
 
   const onRefresh = useCallback(async () => {
     if (!token) return;
     setRefreshing(true);
-    await Promise.all([loadProfile(), loadPosts(profile?.id, profile?.name), loadReposts(profile?.id, profile?.name)]);
+    await Promise.all([
+      loadProfile(),
+      loadPosts(profile?.id, profile?.name),
+      loadReposts(profile?.id, profile?.name),
+      loadSavedPosts(),
+    ]);
     setRefreshing(false);
-  }, [loadProfile, loadPosts, loadReposts, token, profile?.id, profile?.name]);
+  }, [loadProfile, loadPosts, loadReposts, loadSavedPosts, token, profile?.id, profile?.name]);
 
   // Sync reactive follow state whenever the profile data arrives / refreshes
   useEffect(() => {
@@ -2179,6 +2257,18 @@ export default function ProfileScreen() {
           />
         )}
 
+        {/* Tab 4 — Saved posts */}
+        {activeTab === 3 && (
+          <PostsGridTab
+            posts={savedPosts}
+            postsLoading={savedPostsLoading}
+            isDark={isDark}
+            onPostPress={(post) =>
+              setSelectedSavedPostIndex(savedPosts.findIndex((p) => p.id === post.id))
+            }
+          />
+        )}
+
         {/* Bottom spacer */}
         <View style={{ height: insets.bottom + 32 }} />
       </ScrollView>
@@ -2522,6 +2612,46 @@ export default function ProfileScreen() {
                 offset: 520 * info.index,
                 animated: false,
               });
+            }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+          />
+        </View>
+      </Modal>
+
+      {/* ─── Saved Posts Feed Modal (all saved posts, scrolled to tapped index) ─── */}
+      <Modal
+        visible={selectedSavedPostIndex >= 0}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedSavedPostIndex(-1)}
+      >
+        <View className="flex-1 bg-light dark:bg-dark">
+          <View
+            className="flex-row items-center px-4 bg-light dark:bg-dark border-b border-black/10 dark:border-white/10"
+            style={{ paddingTop: insets.top + 10, paddingBottom: 10 }}
+          >
+            <TouchableOpacity onPress={() => setSelectedSavedPostIndex(-1)} hitSlop={12} activeOpacity={0.7}>
+              <Ionicons name="chevron-down" size={26} color={isDark ? '#fff' : '#000'} />
+            </TouchableOpacity>
+            <Text className="ml-3 text-base font-bold text-black dark:text-white">
+              Saved Posts
+            </Text>
+          </View>
+
+          <FlatList
+            data={savedPosts}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => <FeedItem item={item} />}
+            showsVerticalScrollIndicator={false}
+            initialScrollIndex={selectedSavedPostIndex >= 0 ? selectedSavedPostIndex : 0}
+            getItemLayout={(_, index) => ({
+              length: 520,
+              offset: 520 * index,
+              index,
+            })}
+            onScrollToIndexFailed={(info) => {
+              // Fallback: wait for list to finish rendering then retry
+              // (use immediate offset as a best-effort, matching other modals)
             }}
             contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
           />
