@@ -819,7 +819,7 @@ const PROFILE_TABS = [
   { icon: 'grid-outline',      activeIcon: 'grid',      label: 'Posts'   },
   { icon: 'briefcase-outline', activeIcon: 'briefcase', label: 'Resume'  },
   { icon: 'repeat-outline',    activeIcon: 'repeat',    label: 'Reposts' },
-  { icon: 'bookmark-outline',  activeIcon: 'bookmark',  label: 'Saved'   },
+  { icon: 'bookmark-outline',  activeIcon: 'bookmark',  label: 'Saved Posts' },
 ];
 
 function ProfileTabBar({ activeTab, onTabChange, isDark }) {
@@ -865,7 +865,7 @@ function ProfileTabBar({ activeTab, onTabChange, isDark }) {
 
 // ─── Posts Grid Tab (Instagram-style 3-column grid) ───────────────────────────
 
-function PostsGridTab({ posts, postsLoading, isDark, onPostPress }) {
+function PostsGridTab({ posts, postsLoading, isDark, onPostPress, emptyLabel = 'No posts yet', emptyIcon = 'images-outline' }) {
   const TILE_SIZE = Math.floor(SCREEN_WIDTH / 3);
   const GAP = 1.5;
 
@@ -893,7 +893,7 @@ function PostsGridTab({ posts, postsLoading, isDark, onPostPress }) {
           style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }}
         >
           <Ionicons
-            name="images-outline"
+            name={emptyIcon}
             size={30}
             color={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}
           />
@@ -905,7 +905,7 @@ function PostsGridTab({ posts, postsLoading, isDark, onPostPress }) {
             color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
           }}
         >
-          No posts yet
+          {emptyLabel}
         </Text>
       </View>
     );
@@ -1490,15 +1490,14 @@ export default function ProfileScreen() {
 
     setSavedPostsLoading(true);
     try {
-      // We try a few common endpoint names; if none exist, we safely show an empty tab.
-      const candidates = [
-        'mobile/profile/saved-posts',
-        'mobile/profile/saved',
-        'mobile/posts/saved',
-        'mobile/saved-posts',
-      ];
-
-      const list = await tryFetchFirstList({ token, endpoints: candidates });
+      // Canonical endpoint (implemented in backend): GET /api/mobile/posts/saved
+      const res = await API.getWithAuth('mobile/posts/saved', token);
+      const raw =
+        res?.data?.posts ??
+        res?.data?.data ??
+        res?.data ??
+        [];
+      const list = Array.isArray(raw) ? raw : [];
 
       const normalized = (Array.isArray(list) ? list : [])
         .filter(Boolean)
@@ -1620,6 +1619,12 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadSavedPosts();
   }, [loadSavedPosts]);
+
+  useEffect(() => {
+    if (activeTab === 3) {
+      loadSavedPosts();
+    }
+  }, [activeTab, loadSavedPosts]);
 
   useEffect(() => {
     hydrateResumeSections(profile?.id);
@@ -2194,6 +2199,8 @@ export default function ProfileScreen() {
             posts={originalPosts}
             postsLoading={postsLoading}
             isDark={isDark}
+            emptyLabel="No posts yet"
+            emptyIcon="images-outline"
             onPostPress={(post) =>
               setSelectedPostIndex(originalPosts.findIndex((p) => p.id === post.id))
             }
@@ -2263,6 +2270,8 @@ export default function ProfileScreen() {
             posts={savedPosts}
             postsLoading={savedPostsLoading}
             isDark={isDark}
+            emptyLabel="No saved posts yet"
+            emptyIcon="bookmark-outline"
             onPostPress={(post) =>
               setSelectedSavedPostIndex(savedPosts.findIndex((p) => p.id === post.id))
             }

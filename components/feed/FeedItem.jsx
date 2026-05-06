@@ -376,7 +376,7 @@ export default function FeedItem({ item, onPress }) {
 
   const [liked, setLiked] = useState(Boolean(sourcePost?.is_liked_by_user ?? item?.is_liked_by_user));
   const [likeCount, setLikeCount] = useState((sourcePost?.likes ?? item?.likes) || 0);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(Boolean(sourcePost?.is_saved_by_user ?? item?.is_saved_by_user));
   const [commentCount, setCommentCount] = useState((sourcePost?.comments ?? item?.comments) || 0);
   const [showComments, setShowComments] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
@@ -487,6 +487,27 @@ export default function FeedItem({ item, onPress }) {
   const handleDoubleTapLike = () => {
     // Instagram behavior: double tap only LIKES (doesn't unlike)
     if (!liked) handleLike();
+  };
+
+  const handleToggleSave = async () => {
+    if (!token) {
+      Alert.alert('Error', 'Authentication required');
+      return;
+    }
+
+    const wasSaved = saved;
+    setSaved(!wasSaved);
+
+    try {
+      const res = await API.post(`mobile/posts/save/${effectivePostId}`, {}, token);
+      const next = res?.data?.saved;
+      if (typeof next === 'boolean') {
+        setSaved(next);
+      }
+    } catch (_error) {
+      setSaved(wasSaved);
+      Alert.alert('Error', 'Failed to save post. Please try again.');
+    }
   };
 
   const handleRepost = async () => {
@@ -875,7 +896,7 @@ export default function FeedItem({ item, onPress }) {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity onPress={() => setSaved(p => !p)} className="active:opacity-60">
+          <TouchableOpacity onPress={handleToggleSave} className="active:opacity-60">
             <Ionicons
               name={saved ? 'bookmark' : 'bookmark-outline'}
               size={24}
