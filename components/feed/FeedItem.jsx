@@ -925,19 +925,19 @@ export default function FeedItem({ item, onPress }) {
             marginBottom: 8,
           }}
         /> */}
-        <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center justify-between px-2">
           <View className="flex-row items-center" style={{ gap: 16 }}>
             <TouchableOpacity
               onPress={handleLike}
               style={{
-                width: 40, height: 40,
+                // width: 40, height: 40,
                 borderRadius: 20,
                 alignItems: 'center',
                 justifyContent: 'center',
                 // backgroundColor: liked ? 'rgba(255,200,1,0.15)' : 'transparent',
               }}
             >
-              <LionsgeekLikeIcon size={26} color={liked ? '#ffc801' : iconColor} />
+              <LionsgeekLikeIcon size={24} color={liked ? '#ffc801' : iconColor} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowComments(true)} className="active:opacity-60">
               <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
@@ -985,7 +985,7 @@ export default function FeedItem({ item, onPress }) {
       {/* ── Like count ── */}
       {likeCount > 0 ? (
         <Pressable onPress={() => setShowLikes(true)} className="px-4 pb-1 active:opacity-60">
-          <Text className="font-extrabold text-[13px] text-black dark:text-white">
+          <Text className="font-extrabold text-[11px] text-black dark:text-white">
             {likeCount.toLocaleString()} {likeCount === 1 ? 'like' : 'likes'}
           </Text>
         </Pressable>
