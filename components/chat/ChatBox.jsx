@@ -44,8 +44,8 @@ export default function ChatBox({ conversation, onBack, isExpanded, onExpand, su
     // Poll for new messages
     useEffect(() => {
         fetchMessages();
-        const interval = setInterval(fetchMessages, 3000);
-        return () => clearInterval(interval);
+        //  fetchMessages();
+        // return () => clearInterval(interval);
     }, [conversation.id]);
 
     // Fetch messages - b3d ma y3tiw 3la conversation

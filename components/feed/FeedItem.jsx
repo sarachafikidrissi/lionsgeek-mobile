@@ -329,6 +329,51 @@ function LionsgeekLikeIcon({ size = 26, color }) {
   );
 }
 
+function RepostIcon({ size = 26, color, strokeWidth = 2 }) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      accessibilityRole="image"
+    >
+      <Path
+        d="m17 2 4 4-4 4"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M3 11v-1a4 4 0 0 1 4-4h14"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="m7 22-4-4 4-4"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M21 13v1a4 4 0 0 1-4 4H3"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export default function FeedItem({ item, onPress }) {
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
@@ -376,7 +421,7 @@ export default function FeedItem({ item, onPress }) {
 
   const [liked, setLiked] = useState(Boolean(sourcePost?.is_liked_by_user ?? item?.is_liked_by_user));
   const [likeCount, setLikeCount] = useState((sourcePost?.likes ?? item?.likes) || 0);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(Boolean(sourcePost?.is_saved_by_user ?? item?.is_saved_by_user));
   const [commentCount, setCommentCount] = useState((sourcePost?.comments ?? item?.comments) || 0);
   const [showComments, setShowComments] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
@@ -387,7 +432,9 @@ export default function FeedItem({ item, onPress }) {
 
   // Send/Share (Instagram-like) modal state
   const [showSendPost, setShowSendPost] = useState(false);
-  const [sendUsers, setSendUsers] = useState([]);
+  const [sendTab, setSendTab] = useState('following'); // 'followers' | 'following'
+  const [sendFollowers, setSendFollowers] = useState([]);
+  const [sendFollowing, setSendFollowing] = useState([]);
   const [sendQuery, setSendQuery] = useState('');
   const [selectedSendUserId, setSelectedSendUserId] = useState(null);
   const [sendLoading, setSendLoading] = useState(false);
@@ -489,6 +536,27 @@ export default function FeedItem({ item, onPress }) {
     if (!liked) handleLike();
   };
 
+  const handleToggleSave = async () => {
+    if (!token) {
+      Alert.alert('Error', 'Authentication required');
+      return;
+    }
+
+    const wasSaved = saved;
+    setSaved(!wasSaved);
+
+    try {
+      const res = await API.post(`mobile/posts/save/${effectivePostId}`, {}, token);
+      const next = res?.data?.saved;
+      if (typeof next === 'boolean') {
+        setSaved(next);
+      }
+    } catch (_error) {
+      setSaved(wasSaved);
+      Alert.alert('Error', 'Failed to save post. Please try again.');
+    }
+  };
+
   const handleRepost = async () => {
     if (repostLoading) return;
     if (!token) {
@@ -496,21 +564,27 @@ export default function FeedItem({ item, onPress }) {
       return;
     }
 
-    if (repostedByMe) {
-      Alert.alert('Reposted', 'You already reposted this post.');
-      return;
-    }
+    const wasReposted = repostedByMe;
 
+    // Optimistic toggle
     setRepostLoading(true);
-    setRepostedByMe(true);
-    setRepostCount((c) => c + 1);
+    setRepostedByMe(!wasReposted);
+    setRepostCount((c) => Math.max(0, wasReposted ? c - 1 : c + 1));
 
     try {
-      await API.post('mobile/posts/repost', { post_id: effectivePostId }, token);
+      const endpoint = wasReposted ? 'mobile/posts/unrepost' : 'mobile/posts/repost';
+      const response = await API.post(endpoint, { post_id: effectivePostId }, token);
+
+      // Sync counts from server when available
+      const serverCount = response?.data?.reposts_count;
+      const serverReposted = response?.data?.reposted;
+      if (typeof serverReposted === 'boolean') setRepostedByMe(serverReposted);
+      if (typeof serverCount === 'number') setRepostCount(Math.max(0, serverCount));
     } catch (_error) {
-      setRepostedByMe(false);
-      setRepostCount((c) => Math.max(0, c - 1));
-      Alert.alert('Error', 'Failed to repost. Please try again.');
+      // Revert on failure
+      setRepostedByMe(wasReposted);
+      setRepostCount((c) => Math.max(0, wasReposted ? c + 1 : c - 1));
+      Alert.alert('Error', wasReposted ? 'Failed to remove repost. Please try again.' : 'Failed to repost. Please try again.');
     } finally {
       setRepostLoading(false);
     }
@@ -530,29 +604,45 @@ export default function FeedItem({ item, onPress }) {
     }
 
     let mounted = true;
-    const fetchFollowingUsers = async () => {
+    const fetchFollowerAndFollowingUsers = async () => {
+      const profileId = user?.id;
+      if (!profileId) {
+        setSendError('Profile not available yet. Please try again.');
+        return;
+      }
+
       setSendLoading(true);
       setSendError(null);
       try {
-        const response = await API.getWithAuth('mobile/chat/following-users', token);
-        const users = response?.data?.users;
+        const [followersRes, followingRes] = await Promise.all([
+          API.getWithAuth(`mobile/profile/${profileId}/followers`, token),
+          API.getWithAuth(`mobile/profile/${profileId}/following`, token),
+        ]);
+
+        const followers = followersRes?.data?.data ?? followersRes?.data?.users ?? [];
+        const following = followingRes?.data?.data ?? followingRes?.data?.users ?? [];
+
         if (!mounted) return;
-        setSendUsers(Array.isArray(users) ? users : []);
+        setSendFollowers(Array.isArray(followers) ? followers : []);
+        setSendFollowing(Array.isArray(following) ? following : []);
       } catch (_error) {
         if (!mounted) return;
-        setSendError('Failed to load followers. Please try again.');
-        setSendUsers([]);
+        setSendError('Failed to load followers/following. Please try again.');
+        setSendFollowers([]);
+        setSendFollowing([]);
       } finally {
         if (mounted) setSendLoading(false);
       }
     };
 
-    fetchFollowingUsers();
+    fetchFollowerAndFollowingUsers();
 
     return () => {
       mounted = false;
     };
-  }, [showSendPost, token]);
+  }, [showSendPost, token, user?.id]);
+
+  const sendUsers = useMemo(() => (sendTab === 'followers' ? sendFollowers : sendFollowing), [sendFollowers, sendFollowing, sendTab]);
 
   const filteredSendUsers = useMemo(() => {
     const q = sendQuery.trim().toLowerCase();
@@ -567,6 +657,9 @@ export default function FeedItem({ item, onPress }) {
   const closeSendPostModal = () => {
     setShowSendPost(false);
     setSendQuery('');
+    setSendTab('following');
+    setSendFollowers([]);
+    setSendFollowing([]);
     setSelectedSendUserId(null);
     setSendSending(false);
     setSendError(null);
@@ -832,19 +925,19 @@ export default function FeedItem({ item, onPress }) {
             marginBottom: 8,
           }}
         /> */}
-        <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center justify-between px-2">
           <View className="flex-row items-center" style={{ gap: 16 }}>
             <TouchableOpacity
               onPress={handleLike}
               style={{
-                width: 40, height: 40,
+                // width: 40, height: 40,
                 borderRadius: 20,
                 alignItems: 'center',
                 justifyContent: 'center',
                 // backgroundColor: liked ? 'rgba(255,200,1,0.15)' : 'transparent',
               }}
             >
-              <LionsgeekLikeIcon size={26} color={liked ? '#ffc801' : iconColor} />
+              <LionsgeekLikeIcon size={24} color={liked ? '#ffc801' : iconColor} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowComments(true)} className="active:opacity-60">
               <Ionicons name="chatbubble-outline" size={24} color={iconColor} />
@@ -859,7 +952,11 @@ export default function FeedItem({ item, onPress }) {
               {repostLoading ? (
                 <ActivityIndicator size="small" color="#ffc801" />
               ) : (
-                <Ionicons name={repostedByMe ? 'repeat' : 'repeat-outline'} size={24} color={repostedByMe ? '#ffc801' : iconColor} />
+                <RepostIcon
+                  size={26}
+                  color={repostedByMe ? '#ffc801' : iconColor}
+                  strokeWidth={repostedByMe ? 2.6 : 2}
+                />
               )}
             </TouchableOpacity>
 
@@ -875,7 +972,7 @@ export default function FeedItem({ item, onPress }) {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity onPress={() => setSaved(p => !p)} className="active:opacity-60">
+          <TouchableOpacity onPress={handleToggleSave} className="active:opacity-60">
             <Ionicons
               name={saved ? 'bookmark' : 'bookmark-outline'}
               size={24}
@@ -888,7 +985,7 @@ export default function FeedItem({ item, onPress }) {
       {/* ── Like count ── */}
       {likeCount > 0 ? (
         <Pressable onPress={() => setShowLikes(true)} className="px-4 pb-1 active:opacity-60">
-          <Text className="font-extrabold text-[13px] text-black dark:text-white">
+          <Text className="font-extrabold text-[11px] text-black dark:text-white">
             {likeCount.toLocaleString()} {likeCount === 1 ? 'like' : 'likes'}
           </Text>
         </Pressable>
@@ -1034,6 +1131,42 @@ export default function FeedItem({ item, onPress }) {
               </TouchableOpacity>
             </View>
 
+            {/* Followers / Following toggle */}
+            <View
+              style={{
+                marginTop: 10,
+                flexDirection: 'row',
+                borderWidth: 0.5,
+                borderColor: modalBorder,
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
+              <Pressable
+                onPress={() => setSendTab('followers')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                  backgroundColor: sendTab === 'followers' ? (isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)') : 'transparent',
+                }}
+              >
+                <Text style={{ color: textColor, fontWeight: sendTab === 'followers' ? '900' : '800' }}>Followers</Text>
+              </Pressable>
+              <View style={{ width: 0.5, backgroundColor: modalBorder }} />
+              <Pressable
+                onPress={() => setSendTab('following')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                  backgroundColor: sendTab === 'following' ? (isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)') : 'transparent',
+                }}
+              >
+                <Text style={{ color: textColor, fontWeight: sendTab === 'following' ? '900' : '800' }}>Following</Text>
+              </Pressable>
+            </View>
+
             {/* Search */}
             <View
               style={{
@@ -1067,12 +1200,14 @@ export default function FeedItem({ item, onPress }) {
             {sendLoading ? (
               <View style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center' }}>
                 <ActivityIndicator color="#ffc801" />
-                <Text style={{ color: mutedColor, marginTop: 10, fontWeight: '700' }}>Loading followers…</Text>
+                <Text style={{ color: mutedColor, marginTop: 10, fontWeight: '700' }}>
+                  Loading {sendTab === 'followers' ? 'followers' : 'following'}…
+                </Text>
               </View>
             ) : filteredSendUsers.length === 0 ? (
               <View style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ color: mutedColor, fontWeight: '700' }}>
-                  {sendError ? sendError : 'No followers found.'}
+                  {sendError ? sendError : `No ${sendTab === 'followers' ? 'followers' : 'following'} found.`}
                 </Text>
               </View>
             ) : (
@@ -1089,7 +1224,7 @@ export default function FeedItem({ item, onPress }) {
                   return (
                     <Pressable
                       key={u.id}
-                      onPress={() => setSelectedSendUserId(u.id)}
+                      onPress={() => setSelectedSendUserId((prev) => (Number(prev) === Number(u?.id) ? null : u?.id))}
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
