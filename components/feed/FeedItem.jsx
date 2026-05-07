@@ -387,7 +387,9 @@ export default function FeedItem({ item, onPress }) {
 
   // Send/Share (Instagram-like) modal state
   const [showSendPost, setShowSendPost] = useState(false);
-  const [sendUsers, setSendUsers] = useState([]);
+  const [sendTab, setSendTab] = useState('following'); // 'followers' | 'following'
+  const [sendFollowers, setSendFollowers] = useState([]);
+  const [sendFollowing, setSendFollowing] = useState([]);
   const [sendQuery, setSendQuery] = useState('');
   const [selectedSendUserId, setSelectedSendUserId] = useState(null);
   const [sendLoading, setSendLoading] = useState(false);
@@ -551,29 +553,45 @@ export default function FeedItem({ item, onPress }) {
     }
 
     let mounted = true;
-    const fetchFollowingUsers = async () => {
+    const fetchFollowerAndFollowingUsers = async () => {
+      const profileId = user?.id;
+      if (!profileId) {
+        setSendError('Profile not available yet. Please try again.');
+        return;
+      }
+
       setSendLoading(true);
       setSendError(null);
       try {
-        const response = await API.getWithAuth('mobile/chat/following-users', token);
-        const users = response?.data?.users;
+        const [followersRes, followingRes] = await Promise.all([
+          API.getWithAuth(`mobile/profile/${profileId}/followers`, token),
+          API.getWithAuth(`mobile/profile/${profileId}/following`, token),
+        ]);
+
+        const followers = followersRes?.data?.data ?? followersRes?.data?.users ?? [];
+        const following = followingRes?.data?.data ?? followingRes?.data?.users ?? [];
+
         if (!mounted) return;
-        setSendUsers(Array.isArray(users) ? users : []);
+        setSendFollowers(Array.isArray(followers) ? followers : []);
+        setSendFollowing(Array.isArray(following) ? following : []);
       } catch (_error) {
         if (!mounted) return;
-        setSendError('Failed to load followers. Please try again.');
-        setSendUsers([]);
+        setSendError('Failed to load followers/following. Please try again.');
+        setSendFollowers([]);
+        setSendFollowing([]);
       } finally {
         if (mounted) setSendLoading(false);
       }
     };
 
-    fetchFollowingUsers();
+    fetchFollowerAndFollowingUsers();
 
     return () => {
       mounted = false;
     };
-  }, [showSendPost, token]);
+  }, [showSendPost, token, user?.id]);
+
+  const sendUsers = useMemo(() => (sendTab === 'followers' ? sendFollowers : sendFollowing), [sendFollowers, sendFollowing, sendTab]);
 
   const filteredSendUsers = useMemo(() => {
     const q = sendQuery.trim().toLowerCase();
@@ -588,6 +606,9 @@ export default function FeedItem({ item, onPress }) {
   const closeSendPostModal = () => {
     setShowSendPost(false);
     setSendQuery('');
+    setSendTab('following');
+    setSendFollowers([]);
+    setSendFollowing([]);
     setSelectedSendUserId(null);
     setSendSending(false);
     setSendError(null);
@@ -1055,6 +1076,42 @@ export default function FeedItem({ item, onPress }) {
               </TouchableOpacity>
             </View>
 
+            {/* Followers / Following toggle */}
+            <View
+              style={{
+                marginTop: 10,
+                flexDirection: 'row',
+                borderWidth: 0.5,
+                borderColor: modalBorder,
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
+              <Pressable
+                onPress={() => setSendTab('followers')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                  backgroundColor: sendTab === 'followers' ? (isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)') : 'transparent',
+                }}
+              >
+                <Text style={{ color: textColor, fontWeight: sendTab === 'followers' ? '900' : '800' }}>Followers</Text>
+              </Pressable>
+              <View style={{ width: 0.5, backgroundColor: modalBorder }} />
+              <Pressable
+                onPress={() => setSendTab('following')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                  backgroundColor: sendTab === 'following' ? (isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)') : 'transparent',
+                }}
+              >
+                <Text style={{ color: textColor, fontWeight: sendTab === 'following' ? '900' : '800' }}>Following</Text>
+              </Pressable>
+            </View>
+
             {/* Search */}
             <View
               style={{
@@ -1088,12 +1145,14 @@ export default function FeedItem({ item, onPress }) {
             {sendLoading ? (
               <View style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center' }}>
                 <ActivityIndicator color="#ffc801" />
-                <Text style={{ color: mutedColor, marginTop: 10, fontWeight: '700' }}>Loading followers…</Text>
+                <Text style={{ color: mutedColor, marginTop: 10, fontWeight: '700' }}>
+                  Loading {sendTab === 'followers' ? 'followers' : 'following'}…
+                </Text>
               </View>
             ) : filteredSendUsers.length === 0 ? (
               <View style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ color: mutedColor, fontWeight: '700' }}>
-                  {sendError ? sendError : 'No followers found.'}
+                  {sendError ? sendError : `No ${sendTab === 'followers' ? 'followers' : 'following'} found.`}
                 </Text>
               </View>
             ) : (
@@ -1110,7 +1169,7 @@ export default function FeedItem({ item, onPress }) {
                   return (
                     <Pressable
                       key={u.id}
-                      onPress={() => setSelectedSendUserId(u.id)}
+                      onPress={() => setSelectedSendUserId((prev) => (Number(prev) === Number(u?.id) ? null : u?.id))}
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
