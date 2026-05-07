@@ -329,6 +329,51 @@ function LionsgeekLikeIcon({ size = 26, color }) {
   );
 }
 
+function RepostIcon({ size = 26, color, strokeWidth = 2 }) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      accessibilityRole="image"
+    >
+      <Path
+        d="m17 2 4 4-4 4"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M3 11v-1a4 4 0 0 1 4-4h14"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="m7 22-4-4 4-4"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M21 13v1a4 4 0 0 1-4 4H3"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export default function FeedItem({ item, onPress }) {
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
@@ -519,21 +564,27 @@ export default function FeedItem({ item, onPress }) {
       return;
     }
 
-    if (repostedByMe) {
-      Alert.alert('Reposted', 'You already reposted this post.');
-      return;
-    }
+    const wasReposted = repostedByMe;
 
+    // Optimistic toggle
     setRepostLoading(true);
-    setRepostedByMe(true);
-    setRepostCount((c) => c + 1);
+    setRepostedByMe(!wasReposted);
+    setRepostCount((c) => Math.max(0, wasReposted ? c - 1 : c + 1));
 
     try {
-      await API.post('mobile/posts/repost', { post_id: effectivePostId }, token);
+      const endpoint = wasReposted ? 'mobile/posts/unrepost' : 'mobile/posts/repost';
+      const response = await API.post(endpoint, { post_id: effectivePostId }, token);
+
+      // Sync counts from server when available
+      const serverCount = response?.data?.reposts_count;
+      const serverReposted = response?.data?.reposted;
+      if (typeof serverReposted === 'boolean') setRepostedByMe(serverReposted);
+      if (typeof serverCount === 'number') setRepostCount(Math.max(0, serverCount));
     } catch (_error) {
-      setRepostedByMe(false);
-      setRepostCount((c) => Math.max(0, c - 1));
-      Alert.alert('Error', 'Failed to repost. Please try again.');
+      // Revert on failure
+      setRepostedByMe(wasReposted);
+      setRepostCount((c) => Math.max(0, wasReposted ? c + 1 : c - 1));
+      Alert.alert('Error', wasReposted ? 'Failed to remove repost. Please try again.' : 'Failed to repost. Please try again.');
     } finally {
       setRepostLoading(false);
     }
@@ -901,7 +952,11 @@ export default function FeedItem({ item, onPress }) {
               {repostLoading ? (
                 <ActivityIndicator size="small" color="#ffc801" />
               ) : (
-                <Ionicons name={repostedByMe ? 'repeat' : 'repeat-outline'} size={24} color={repostedByMe ? '#ffc801' : iconColor} />
+                <RepostIcon
+                  size={26}
+                  color={repostedByMe ? '#ffc801' : iconColor}
+                  strokeWidth={repostedByMe ? 2.6 : 2}
+                />
               )}
             </TouchableOpacity>
 

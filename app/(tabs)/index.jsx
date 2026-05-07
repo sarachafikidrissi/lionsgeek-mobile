@@ -170,29 +170,33 @@ export default function HomeScreen() {
     }
 
     try {
-      const response = await API.post('mobile/posts/repost', {
-        post_id: post.id,
-      }, token);
+      const wasReposted = Boolean(post?.isReposted || post?.is_reposted_by_user || post?.reposted);
+      const endpoint = wasReposted ? 'mobile/posts/unrepost' : 'mobile/posts/repost';
+
+      const response = await API.post(endpoint, { post_id: post.id }, token);
 
       if (response?.data) {
+        const serverReposted = response?.data?.reposted;
+        const serverCount = response?.data?.reposts_count;
         setPosts(prevPosts =>
           prevPosts.map(p =>
             p.id === post.id
               ? {
                   ...p,
-                  isReposted: true,
-                  reposts: (p.reposts || 0) + 1,
-                  reposted: true,
-                  reposted_by: user?.name || 'You',
+                  isReposted: typeof serverReposted === 'boolean' ? serverReposted : !wasReposted,
+                  reposted: typeof serverReposted === 'boolean' ? serverReposted : !wasReposted,
+                  reposts: typeof serverCount === 'number'
+                    ? Math.max(0, serverCount)
+                    : Math.max(0, (p.reposts || 0) + (wasReposted ? -1 : 1)),
+                  reposted_by: !wasReposted ? (user?.name || 'You') : (p.reposted_by ?? null),
                 }
               : p
           )
         );
-        Alert.alert('Success', 'Post reposted!');
       }
     } catch (error) {
       console.error('[HOME] Error reposting:', error);
-      Alert.alert('Error', 'Failed to repost. Please try again.');
+      Alert.alert('Error', 'Failed to update repost. Please try again.');
     }
   };
 
