@@ -426,6 +426,9 @@ export default function FeedItem({ item, onPress }) {
   const [showComments, setShowComments] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
   const [showPostMenu, setShowPostMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const [repostedByMe, setRepostedByMe] = useState(Boolean(item.isReposted || item.is_reposted_by_user));
   const [repostCount, setRepostCount] = useState((sourcePost?.reposts ?? item?.reposts) || 0);
   const [repostLoading, setRepostLoading] = useState(false);
@@ -735,6 +738,37 @@ export default function FeedItem({ item, onPress }) {
     router.push(`/posts/edit/${item.id}`);
   };
 
+  const handleOpenReport = () => {
+    setShowPostMenu(false);
+    setReportReason('');
+    setShowReportModal(true);
+  };
+
+  const handleSubmitReport = async () => {
+    if (!token) {
+      Alert.alert('Error', 'Authentication required');
+      return;
+    }
+    if (reportSubmitting) return;
+
+    setReportSubmitting(true);
+    try {
+      await API.postWithAuth(`mobile/posts/${effectivePostId}/report`, { reason: reportReason?.trim() || null }, token);
+      setShowReportModal(false);
+      Alert.alert('Reported', 'Thanks. Our team will review this post.');
+    } catch (error) {
+      const data = error?.response?.data;
+      const msg =
+        (data && typeof data === 'object' && (data.message || data.error)) ||
+        (typeof data === 'string' ? data : null) ||
+        error?.message ||
+        'Failed to report this post. Please try again.';
+      Alert.alert('Error', String(msg));
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
   return (
     <View
       style={{
@@ -805,16 +839,12 @@ export default function FeedItem({ item, onPress }) {
           </View>
         </Pressable>
 
-        {isOwner ? (
-          <TouchableOpacity
-            onPress={() => setShowPostMenu(true)}
-            className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color={iconColor} />
-          </TouchableOpacity>
-        ) : (
-          <View className="h-8 w-8" />
-        )}
+        <TouchableOpacity
+          onPress={() => setShowPostMenu(true)}
+          className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
+        >
+          <Ionicons name="ellipsis-horizontal" size={20} color={iconColor} />
+        </TouchableOpacity>
       </View>
 
       {/* ── Caption above image (text-only posts) ── */}
@@ -1065,25 +1095,111 @@ export default function FeedItem({ item, onPress }) {
             overflow: 'hidden',
           }}
         >
-          <Pressable
-            onPress={handleEditPost}
-            style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
-          >
-            <Ionicons name="pencil" size={18} color={textColor} />
-            <Text style={{ color: textColor, fontWeight: '800' }}>Edit</Text>
-          </Pressable>
-          <View style={{ height: 0.5, backgroundColor: isDark ? '#2e2e2e' : '#e8e5e0' }} />
-          <Pressable
-            onPress={handleDeletePost}
-            style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
-          >
-            <Ionicons name="trash" size={18} color="#ef4444" />
-            <Text style={{ color: '#ef4444', fontWeight: '900' }}>Delete</Text>
-          </Pressable>
+          {isOwner ? (
+            <>
+              <Pressable
+                onPress={handleEditPost}
+                style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              >
+                <Ionicons name="pencil" size={18} color={textColor} />
+                <Text style={{ color: textColor, fontWeight: '800' }}>Edit</Text>
+              </Pressable>
+              <View style={{ height: 0.5, backgroundColor: isDark ? '#2e2e2e' : '#e8e5e0' }} />
+              <Pressable
+                onPress={handleDeletePost}
+                style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              >
+                <Ionicons name="trash" size={18} color="#ef4444" />
+                <Text style={{ color: '#ef4444', fontWeight: '900' }}>Delete</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Pressable
+                onPress={handleOpenReport}
+                style={{ paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              >
+                <Ionicons name="flag" size={18} color="#ef4444" />
+                <Text style={{ color: '#ef4444', fontWeight: '900' }}>Report</Text>
+              </Pressable>
+            </>
+          )}
           <View style={{ height: 8, backgroundColor: 'transparent' }} />
           <Pressable onPress={() => setShowPostMenu(false)} style={{ paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' }}>
             <Text style={{ color: mutedColor, fontWeight: '800' }}>Cancel</Text>
           </Pressable>
+        </View>
+      </Modal>
+
+      {/* Report modal */}
+      <Modal
+        transparent
+        animationType="slide"
+        visible={showReportModal}
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} onPress={() => setShowReportModal(false)} />
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            maxHeight: '70%',
+            backgroundColor: modalBg,
+            borderTopLeftRadius: 18,
+            borderTopRightRadius: 18,
+            borderTopWidth: 0.5,
+            borderColor: modalBorder,
+            overflow: 'hidden',
+          }}
+        >
+          <View style={{ paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 0.5, borderColor: modalBorder }}>
+            <View style={{ alignItems: 'center', marginBottom: 10 }}>
+              <View style={{ width: 44, height: 4, borderRadius: 999, backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)' }} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <TouchableOpacity onPress={() => setShowReportModal(false)} style={{ padding: 6 }}>
+                <Text style={{ color: mutedColor, fontWeight: '900' }}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={{ color: textColor, fontWeight: '900', fontSize: 16 }}>Report post</Text>
+              <TouchableOpacity
+                onPress={handleSubmitReport}
+                disabled={reportSubmitting}
+                style={{ padding: 6, opacity: reportSubmitting ? 0.6 : 1 }}
+              >
+                <Text style={{ color: '#ef4444', fontWeight: '900' }}>
+                  {reportSubmitting ? 'Sending…' : 'Send'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ padding: 14, gap: 10 }}>
+            <Text style={{ color: mutedColor, fontWeight: '800', fontSize: 12 }}>
+              Tell us what’s wrong (optional)
+            </Text>
+            <View
+              style={{
+                borderWidth: 0.5,
+                borderColor: modalBorder,
+                backgroundColor: isDark ? '#1d1d1d' : '#f5f5f5',
+                borderRadius: 16,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              }}
+            >
+              <TextInput
+                value={reportReason}
+                onChangeText={setReportReason}
+                placeholder="Spam, harassment, inappropriate content…"
+                placeholderTextColor={mutedColor}
+                style={{ color: textColor, fontWeight: '700', minHeight: 90 }}
+                multiline
+                maxLength={2000}
+              />
+            </View>
+          </View>
         </View>
       </Modal>
 
