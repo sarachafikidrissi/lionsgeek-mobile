@@ -697,7 +697,7 @@ export default function ExperienceFormModal({
                   I currently work here
                 </Text>
                 <Text style={{ fontSize: 11, color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.4)', marginTop: 1 }}>
-                  End date will show as "Present"
+                  End date will show as &quot;Present&quot;
                 </Text>
               </View>
             </View>
