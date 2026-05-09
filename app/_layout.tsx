@@ -62,6 +62,17 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="chat" options={{ headerShown: false }} />
       <Stack.Screen name="posts/edit/[id]" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="more"
+        options={{
+          title: 'More',
+          headerShown: true,
+          headerStyle: { backgroundColor: stackBg },
+          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
+          headerTitleStyle: { fontWeight: '700' },
+          headerShadowVisible: false,
+        }}
+      />
       <Stack.Screen name="+not-found" />
     </Stack>
   );

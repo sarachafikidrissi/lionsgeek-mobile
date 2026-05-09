@@ -22,7 +22,7 @@ export default function ChatListScreen() {
   return (
     <AppLayout >
       <View className="flex-1 bg-neutral-100 dark:bg-[#0c0c0c]">
-        <View className="px-4 pt-3 pb-2 bg-light dark:bg-dark border-b border-black/[0.06] dark:border-white/[0.08]">
+        <View className="px-4 pt-3 pb-2 bg-light dark:bg-dark border-b border-black/[0.06] dark:border-white/[0qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq.08]">
           <View className="rounded-2xl border border-alpha/40 bg-alpha/12 dark:bg-alpha/8 px-3 py-2.5 flex-row items-center">
             <View className="w-1.5 h-1.5 rounded-full bg-alpha mr-2" />
             <Text className="text-xs text-black/70 dark:text-white/70 flex-1">
