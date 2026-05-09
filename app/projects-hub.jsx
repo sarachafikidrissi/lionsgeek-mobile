@@ -5,7 +5,7 @@ export default function ProjectsHubScreen() {
   return (
     <MoreHubScreen
       eyebrow="Build"
-      icon="hammer"
+      icon="cube-outline"
       title="Projects"
       description="Ship cohort projects, capstones, and team deliveries. Central place for briefs, repos links, and demo days — wired to Training when your admin enables modules."
       bullets={[

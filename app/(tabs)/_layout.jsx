@@ -2,6 +2,7 @@ import { Tabs, router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Image, Platform, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 
 import { HapticTab } from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';
@@ -133,6 +134,12 @@ export default function TabLayout() {
                       {...props}
                       onPress={() => {
                         router.replace('/(tabs)/profile');
+                      }}
+                      onLongPress={() => {
+                        if (Platform.OS !== 'web') {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                        }
+                        router.push('/more');
                       }}
                     />
                   ),

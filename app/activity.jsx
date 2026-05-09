@@ -5,7 +5,7 @@ export default function ActivityScreen() {
   return (
     <MoreHubScreen
       eyebrow="Timeline"
-      icon="pulse"
+      icon="time-outline"
       title="Recent activity"
       description="A unified timeline of check-ins, reservations, mentions, and achievements will aggregate here once activity feeds are exposed by the API."
       bullets={[
