@@ -8,7 +8,6 @@ import {
   Switch,
   Alert,
   Platform,
-  Linking,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useAppContext } from '@/context';
@@ -187,12 +186,6 @@ export default function More() {
     />
   );
 
-  const openExternal = (url) => {
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Unable to open link', 'Please try again later.');
-    });
-  };
-
   return (
     <AppLayout showNavbar={false} className="dark:bg-[#0D0C0B]">
       <ScrollView
@@ -349,16 +342,32 @@ export default function More() {
           <SettingRow
             icon="help-circle-outline"
             label="Support center"
-            sublabel="Help articles & contact"
-            onPress={() => openExternal('https://lionsgeek.com')}
-            right={<Ionicons name="open-outline" size={18} color={ACCENT_MUTED} />}
+            sublabel="FAQ & contact"
+            onPress={() => router.push('/support')}
+            right={chevron}
           />
           <RowDivider />
           <SettingRow
-            icon="shield-checkmark-outline"
+            icon="document-text-outline"
             label="Terms & conditions"
-            sublabel="Policies & agreements"
-            onPress={() => openExternal('https://lionsgeek.com')}
+            sublabel="Rules for using the app"
+            onPress={() => router.push('/terms')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="shield-outline"
+            label="Privacy policy"
+            sublabel="How we handle your data"
+            onPress={() => router.push('/privacy')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="code-slash-outline"
+            label="Open-source licenses"
+            sublabel="Third-party software notices"
+            onPress={() => router.push('/licenses')}
             right={chevron}
           />
         </SettingsCard>

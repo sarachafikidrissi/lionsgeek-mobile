@@ -73,6 +73,50 @@ function RootLayoutNav() {
           headerShadowVisible: false,
         }}
       />
+      <Stack.Screen
+        name="terms"
+        options={{
+          title: 'Terms & conditions',
+          headerShown: true,
+          headerStyle: { backgroundColor: stackBg },
+          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
+          headerTitleStyle: { fontWeight: '700' },
+          headerShadowVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="privacy"
+        options={{
+          title: 'Privacy policy',
+          headerShown: true,
+          headerStyle: { backgroundColor: stackBg },
+          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
+          headerTitleStyle: { fontWeight: '700' },
+          headerShadowVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="support"
+        options={{
+          title: 'Support',
+          headerShown: true,
+          headerStyle: { backgroundColor: stackBg },
+          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
+          headerTitleStyle: { fontWeight: '700' },
+          headerShadowVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="licenses"
+        options={{
+          title: 'Licenses',
+          headerShown: true,
+          headerStyle: { backgroundColor: stackBg },
+          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
+          headerTitleStyle: { fontWeight: '700' },
+          headerShadowVisible: false,
+        }}
+      />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
