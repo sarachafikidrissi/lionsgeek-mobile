@@ -15,23 +15,49 @@ import { router } from 'expo-router';
 import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
+import Rolegard from '@/components/Rolegard';
 import Skeleton from '@/components/ui/Skeleton';
+import SmoothThemeToggle from '@/components/ui/SmoothThemeToggle';
 import { resolveAvatarUrl, getUserRolesNormalized } from '@/components/helpers/helpers';
 import { Colors } from '@/constants/Colors';
 
 const ACCENT = '#F5C518';
 const ACCENT_MUTED = 'rgba(245, 197, 24, 0.85)';
-const BG_DEEP = '#0D0C0B';
 /** Tappable row inside a premium settings card. */
+function SoonPill() {
+  return (
+    <View className="rounded-full border border-alpha/35 bg-alpha/12 px-2 py-0.5 dark:bg-alpha/15">
+      <Text className="text-[9px] font-extrabold uppercase tracking-wide text-alpha">Soon</Text>
+    </View>
+  );
+}
+
+function ProPill() {
+  return (
+    <View className="rounded-full bg-alpha px-2 py-0.5">
+      <Text className="text-[9px] font-extrabold uppercase tracking-wide text-beta">Pro</Text>
+    </View>
+  );
+}
+
 function SettingRow({
   icon,
   label,
   sublabel,
   onPress,
   right,
+  pill,
   danger = false,
   disabled = false,
 }) {
+  const trailing =
+    pill || right ? (
+      <View className="flex-row items-center gap-2">
+        {pill}
+        {right}
+      </View>
+    ) : null;
+
   return (
     <TouchableOpacity
       onPress={disabled ? undefined : onPress}
@@ -55,7 +81,7 @@ function SettingRow({
           </Text>
         ) : null}
       </View>
-      {right ?? null}
+      {trailing}
     </TouchableOpacity>
   );
 }
@@ -64,9 +90,11 @@ function RowDivider() {
   return <View className="mx-5 h-px bg-black/[0.06] dark:bg-white/10" />;
 }
 
-function SectionLabel({ title }) {
+function SectionLabel({ title, className = '' }) {
   return (
-    <Text className="mb-2 mt-8 px-5 text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-500 dark:text-[#a89f94]">
+    <Text
+      className={`mb-2 mt-8 px-5 text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-500 dark:text-[#a89f94] ${className}`}
+    >
       {title}
     </Text>
   );
@@ -176,7 +204,16 @@ export default function More() {
     .slice(0, 2)
     .toUpperCase();
   const roles = getUserRolesNormalized(displayProfile);
-  const canViewMembers = roles.some((r) => ['admin', 'coach'].includes(String(r).toLowerCase()));
+  const roleLower = roles.map((r) => String(r).toLowerCase());
+  const canViewMembers = roleLower.some((r) => ['admin', 'coach'].includes(r));
+  const isAdmin = roleLower.includes('admin');
+
+  const comingSoon = (feature) => () =>
+    Alert.alert(
+      'Coming soon',
+      `${feature} will land in a future update. You’re on the early access path.`,
+      [{ text: 'Got it', style: 'default' }],
+    );
 
   const chevron = (
     <Ionicons
@@ -231,8 +268,147 @@ export default function More() {
           </TouchableOpacity>
         </View>
 
-        {/* Account settings */}
-        <SectionLabel title="Account settings" />
+        {/* Feed & library */}
+        <SectionLabel title="Feed & library" className="mt-5" />
+        <SettingsCard>
+          <SettingRow
+            icon="bookmark-outline"
+            label="Saved posts"
+            sublabel="Bookmarks & reading list for the feed"
+            onPress={() => router.push('/saved-posts')}
+            right={chevron}
+            pill={<SoonPill />}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="pulse-outline"
+            label="Recent activity"
+            sublabel="Check-ins, mentions & milestones"
+            onPress={() => router.push('/activity')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="search-outline"
+            label="Discover"
+            sublabel="Search people & posts"
+            onPress={() => router.push('/(tabs)/search')}
+            right={chevron}
+          />
+        </SettingsCard>
+
+        {/* Growth & recognition */}
+        <SectionLabel title="Growth & recognition" />
+        <SettingsCard>
+          <SettingRow
+            icon="ribbon-outline"
+            label="Achievements & badges"
+            sublabel="Streaks, tiers & milestones"
+            onPress={() => router.push('/achievements')}
+            right={chevron}
+            pill={<ProPill />}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="school-outline"
+            label="Learning journey"
+            sublabel="Progress across modules & sessions"
+            onPress={() => router.push('/learning-progress')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="trophy-outline"
+            label="Leaderboard"
+            sublabel="Coding hours & cohort rankings"
+            onPress={() => router.push('/(tabs)/leaderboard')}
+            right={chevron}
+          />
+        </SettingsCard>
+
+        {/* Projects & sessions */}
+        <SectionLabel title="Projects & sessions" />
+        <SettingsCard>
+          <SettingRow
+            icon="hammer-outline"
+            label="Projects hub"
+            sublabel="Capstones, briefs & deliveries"
+            onPress={() => router.push('/projects-hub')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="fitness-outline"
+            label="Training hub"
+            sublabel="Modules, schedules & resources"
+            onPress={() => router.push('/(tabs)/training')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="clipboard-outline"
+            label="Attendance history"
+            sublabel="Review past check-ins"
+            onPress={() => router.push('/(tabs)/training/attendance')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="qr-code-outline"
+            label="Scan QR code"
+            sublabel="Quick check-in to a session"
+            onPress={() => router.push('/(tabs)/training/qr-scanner')}
+            right={chevron}
+          />
+        </SettingsCard>
+
+        {/* Spaces */}
+        <SectionLabel title="Spaces & calendar" />
+        <SettingsCard>
+          <SettingRow
+            icon="calendar-outline"
+            label="Reservations"
+            sublabel="Coworking & spaces"
+            onPress={() => router.push('/(tabs)/reservations')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="desktop-outline"
+            label="Reserve coworking"
+            sublabel="Pick a desk or room"
+            onPress={() => router.push('/(tabs)/reservations/reserveCowork')}
+            right={chevron}
+          />
+        </SettingsCard>
+
+        {/* Connected */}
+        <SectionLabel title="Stay connected" />
+        <SettingsCard>
+          <SettingRow
+            icon="chatbubbles-outline"
+            label="Messages"
+            sublabel="Direct conversations"
+            onPress={() => router.push('/chat')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="notifications-outline"
+            label="Notifications"
+            sublabel="Alerts & mentions"
+            onPress={() => router.push('/(tabs)/notifications')}
+            right={
+              <View className="flex-row items-center gap-2">
+                <NotificationBadge count={unreadNotifications} />
+                {chevron}
+              </View>
+            }
+          />
+        </SettingsCard>
+
+        {/* Account */}
+        <SectionLabel title="Account & security" />
         <SettingsCard>
           <SettingRow
             icon="person-outline"
@@ -243,29 +419,39 @@ export default function More() {
           />
           <RowDivider />
           <SettingRow
-            icon="lock-closed-outline"
+            icon="shield-checkmark-outline"
             label="Password & security"
-            sublabel="Reset password & account safety"
+            sublabel="Recovery email & sign-in hygiene"
+            onPress={() => router.push('/auth/forgot-password')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="key-outline"
+            label="Reset password"
+            sublabel="Send a reset link to your email"
             onPress={() => router.push('/auth/forgot-password')}
             right={chevron}
           />
         </SettingsCard>
 
-        {/* App preferences */}
-        <SectionLabel title="App preferences" />
+        {/* Personalization */}
+        <SectionLabel title="Personalization" />
         <SettingsCard>
+          <SettingRow
+            icon="options-outline"
+            label="Customize experience"
+            sublabel="Density, alerts roadmap & themes"
+            onPress={() => router.push('/customization')}
+            right={chevron}
+          />
+          <RowDivider />
           <SettingRow
             icon={isDark ? 'moon' : 'sunny-outline'}
             label="Dark mode"
             sublabel={isDark ? 'Premium dark theme enabled' : 'Light theme'}
             right={
-              <Switch
-                value={isDark}
-                onValueChange={handleThemeToggle}
-                trackColor={{ false: 'rgba(120,120,120,0.35)', true: ACCENT }}
-                thumbColor={Platform.OS === 'android' ? (isDark ? BG_DEEP : '#fafafa') : undefined}
-                ios_backgroundColor="rgba(120,120,120,0.35)"
-              />
+              <SmoothThemeToggle value={isDark} onValueChange={handleThemeToggle} accent={ACCENT} />
             }
           />
           <RowDivider />
@@ -285,17 +471,9 @@ export default function More() {
           />
         </SettingsCard>
 
-        {/* Community & content */}
-        <SectionLabel title="Community & content" />
+        {/* Community */}
+        <SectionLabel title="Community" />
         <SettingsCard>
-          <SettingRow
-            icon="qr-code-outline"
-            label="Scan QR code"
-            sublabel="Check in to a training session"
-            onPress={() => router.push('/(tabs)/training/qr-scanner')}
-            right={chevron}
-          />
-          <RowDivider />
           {canViewMembers ? (
             <SettingRow
               icon="people-outline"
@@ -315,26 +493,85 @@ export default function More() {
           )}
           <RowDivider />
           <SettingRow
-            icon="notifications-outline"
-            label="Notifications"
-            sublabel="Alerts & mentions"
-            onPress={() => router.push('/(tabs)/notifications')}
-            right={
-              <View className="flex-row items-center gap-2">
-                <NotificationBadge count={unreadNotifications} />
-                {chevron}
-              </View>
-            }
+            icon="share-social-outline"
+            label="Invite teammates"
+            sublabel="Share LionsGeek with your cohort"
+            onPress={comingSoon('Referrals')}
+            right={chevron}
+            pill={<SoonPill />}
+          />
+        </SettingsCard>
+
+        {/* Power user */}
+        <SectionLabel title="Power tools" />
+        <SettingsCard>
+          <SettingRow
+            icon="cloud-download-outline"
+            label="Offline library"
+            sublabel="Download lessons for travel mode"
+            onPress={comingSoon('Offline library')}
+            right={chevron}
+            pill={<SoonPill />}
           />
           <RowDivider />
           <SettingRow
-            icon="folder-open-outline"
-            label="Project tools"
-            sublabel="Training & sessions"
-            onPress={() => router.push('/(tabs)/training')}
+            icon="sync-outline"
+            label="Calendar sync"
+            sublabel="Push sessions to your device calendar"
+            onPress={comingSoon('Calendar sync')}
             right={chevron}
+            pill={<SoonPill />}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="document-text-outline"
+            label="Export my data"
+            sublabel="GDPR-friendly data portability"
+            onPress={comingSoon('Data export')}
+            right={chevron}
+            pill={<SoonPill />}
           />
         </SettingsCard>
+
+        {/* Admin */}
+        <Rolegard authorized={['admin']}>
+          <SectionLabel title="Administration" />
+          <SettingsCard>
+            <SettingRow
+              icon="analytics-outline"
+              label="Reports & insights"
+              sublabel="Attendance, engagement & flags"
+              onPress={() => router.push('/admin-reports')}
+              right={chevron}
+              pill={<ProPill />}
+            />
+            <RowDivider />
+            <SettingRow
+              icon="speedometer-outline"
+              label="Cohort pulse"
+              sublabel="Live health of promotions"
+              onPress={comingSoon('Cohort pulse')}
+              right={chevron}
+              pill={<SoonPill />}
+            />
+          </SettingsCard>
+        </Rolegard>
+
+        {/* Coach-only extra visibility */}
+        {!isAdmin && canViewMembers ? (
+          <>
+            <SectionLabel title="Coach shortcuts" />
+            <SettingsCard>
+              <SettingRow
+                icon="people-circle-outline"
+                label="Roster insights"
+                sublabel="Jump into members"
+                onPress={() => router.push('/(tabs)/members')}
+                right={chevron}
+              />
+            </SettingsCard>
+          </>
+        ) : null}
 
         {/* Help & legal */}
         <SectionLabel title="Help & legal" />

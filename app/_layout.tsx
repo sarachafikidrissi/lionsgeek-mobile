@@ -18,6 +18,21 @@ import Constants from 'expo-constants';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+function stackHeaderOptions(
+  title: string,
+  stackBg: string,
+  colorScheme: string | null | undefined,
+) {
+  return {
+    title,
+    headerShown: true as const,
+    headerStyle: { backgroundColor: stackBg },
+    headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
+    headerTitleStyle: { fontWeight: '700' as const },
+    headerShadowVisible: false,
+  };
+}
+
 function RootLayoutNav() {
   const notificationListenersRef = useRef(null);
   const colorScheme = useColorScheme();
@@ -62,61 +77,36 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="chat" options={{ headerShown: false }} />
       <Stack.Screen name="posts/edit/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="more" options={stackHeaderOptions('More', stackBg, colorScheme)} />
       <Stack.Screen
-        name="more"
-        options={{
-          title: 'More',
-          headerShown: true,
-          headerStyle: { backgroundColor: stackBg },
-          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
-          headerTitleStyle: { fontWeight: '700' },
-          headerShadowVisible: false,
-        }}
+        name="saved-posts"
+        options={stackHeaderOptions('Saved posts', stackBg, colorScheme)}
       />
+      <Stack.Screen
+        name="achievements"
+        options={stackHeaderOptions('Achievements', stackBg, colorScheme)}
+      />
+      <Stack.Screen
+        name="learning-progress"
+        options={stackHeaderOptions('Learning progress', stackBg, colorScheme)}
+      />
+      <Stack.Screen name="projects-hub" options={stackHeaderOptions('Projects', stackBg, colorScheme)} />
+      <Stack.Screen
+        name="admin-reports"
+        options={stackHeaderOptions('Reports', stackBg, colorScheme)}
+      />
+      <Stack.Screen
+        name="customization"
+        options={stackHeaderOptions('Customize', stackBg, colorScheme)}
+      />
+      <Stack.Screen name="activity" options={stackHeaderOptions('Activity', stackBg, colorScheme)} />
       <Stack.Screen
         name="terms"
-        options={{
-          title: 'Terms & conditions',
-          headerShown: true,
-          headerStyle: { backgroundColor: stackBg },
-          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
-          headerTitleStyle: { fontWeight: '700' },
-          headerShadowVisible: false,
-        }}
+        options={stackHeaderOptions('Terms & conditions', stackBg, colorScheme)}
       />
-      <Stack.Screen
-        name="privacy"
-        options={{
-          title: 'Privacy policy',
-          headerShown: true,
-          headerStyle: { backgroundColor: stackBg },
-          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
-          headerTitleStyle: { fontWeight: '700' },
-          headerShadowVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="support"
-        options={{
-          title: 'Support',
-          headerShown: true,
-          headerStyle: { backgroundColor: stackBg },
-          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
-          headerTitleStyle: { fontWeight: '700' },
-          headerShadowVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="licenses"
-        options={{
-          title: 'Licenses',
-          headerShown: true,
-          headerStyle: { backgroundColor: stackBg },
-          headerTintColor: colorScheme === 'dark' ? Colors.light : Colors.beta,
-          headerTitleStyle: { fontWeight: '700' },
-          headerShadowVisible: false,
-        }}
-      />
+      <Stack.Screen name="privacy" options={stackHeaderOptions('Privacy policy', stackBg, colorScheme)} />
+      <Stack.Screen name="support" options={stackHeaderOptions('Support', stackBg, colorScheme)} />
+      <Stack.Screen name="licenses" options={stackHeaderOptions('Licenses', stackBg, colorScheme)} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
