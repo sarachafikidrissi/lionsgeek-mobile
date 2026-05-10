@@ -273,28 +273,8 @@ export default function More() {
           </TouchableOpacity>
         </View>
 
-        {/* Quick launch */}
-        <SectionLabel title="Quick launch" className="mt-5" />
-        <SettingsCard>
-          <SettingRow
-            icon="home-outline"
-            label="Home feed"
-            sublabel="Posts, updates & community"
-            onPress={() => router.push('/(tabs)/')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
-            icon="newspaper-outline"
-            label="Posts & publishing"
-            sublabel="Open composer from your profile flow"
-            onPress={() => router.push('/(tabs)/profile')}
-            right={chevron}
-          />
-        </SettingsCard>
-
         {/* Feed & library */}
-        <SectionLabel title="Feed & library" />
+        <SectionLabel title="Feed & library" className="mt-5" />
         <SettingsCard>
           <SettingRow
             icon="bookmark-outline"
@@ -431,7 +411,7 @@ export default function More() {
             icon="chatbubbles-outline"
             label="Messages"
             sublabel="Direct conversations"
-            onPress={() => router.push('/chat')}
+            onPress={() => router.push('/(tabs)/chat')}
             right={chevron}
           />
           <RowDivider />

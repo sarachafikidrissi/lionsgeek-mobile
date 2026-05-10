@@ -554,6 +554,10 @@ export default function FeedItem({ item, onPress }) {
       if (typeof next === 'boolean') {
         setSaved(next);
       }
+      const finalSaved = typeof next === 'boolean' ? next : !wasSaved;
+      if (typeof item.onBookmarkChange === 'function') {
+        item.onBookmarkChange(finalSaved);
+      }
     } catch (_error) {
       setSaved(wasSaved);
       Alert.alert('Error', 'Failed to save post. Please try again.');
