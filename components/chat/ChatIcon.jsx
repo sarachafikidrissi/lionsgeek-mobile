@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import ConversationsList from './ConversationsList';
@@ -11,21 +12,13 @@ export default function ChatIcon() {
     const currentUser = user;
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
-    const conversationsListRef = useRef(null);
-    const conversationIdsRef = useRef([]);
-
     useEffect(() => {
         fetchUnreadCount();
-        
-        // Listen to open-chat event for specific user
+
         const handleOpenChat = (event) => {
             const { userId } = event.detail;
-            setIsOpen(true);
-            setTimeout(() => {
-                if (conversationsListRef.current?.openConversationWithUser) {
-                    conversationsListRef.current.openConversationWithUser(userId);
-                }
-            }, 100);
+            setIsOpen(false);
+            router.push(`/chat/${String(userId)}`);
         };
 
         // In React Native, use a global event emitter or callback
@@ -82,9 +75,8 @@ export default function ChatIcon() {
                 onRequestClose={() => handleOpenChange(false)}
             >
                 <View className="flex-1 bg-white dark:bg-gray-900">
-                    <ConversationsList 
-                        ref={conversationsListRef}
-                        onCloseChat={() => handleOpenChange(false)}
+                    <ConversationsList
+                        onBeforeNavigateToThread={() => handleOpenChange(false)}
                         onUnreadCountChange={setUnreadCount}
                     />
                 </View>

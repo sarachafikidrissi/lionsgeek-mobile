@@ -1,13 +1,23 @@
 import axios from "axios";
 
-
 const APP_URL = process.env.EXPO_PUBLIC_APP_URL;
 
-const IMAGE_URL = `${APP_URL}/storage/images`
-const VIDEO_URL = `${APP_URL}/storage/videos`
+const ensureAppUrl = () => {
+    const value = typeof APP_URL === 'string' ? APP_URL.trim() : '';
+    if (!value) {
+        throw new Error(
+            'EXPO_PUBLIC_APP_URL is not set. Create a .env file (see .env.example) and restart Expo.'
+        );
+    }
+    return value.replace(/\/+$/, '');
+};
+
+const IMAGE_URL = APP_URL ? `${APP_URL}/storage/images` : '';
+const VIDEO_URL = APP_URL ? `${APP_URL}/storage/videos` : '';
 
 const get = async (endpoint, Token) => {
     try {
+        const baseUrl = ensureAppUrl();
         // Token is REQUIRED for all API calls
         if (!Token) {
             throw new Error('Authentication token is required');
@@ -19,7 +29,8 @@ const get = async (endpoint, Token) => {
             'Content-Type': 'application/json',
         };
 
-        const response = await axios.get(`${APP_URL}/api/${endpoint}`, { headers });
+        const url = `${baseUrl}/api/${endpoint}`;
+        const response = await axios.get(url, { headers });
         
         // Handle case where response.data is a string with HTML warnings + JSON
         if (typeof response.data === 'string') {
@@ -37,11 +48,15 @@ const get = async (endpoint, Token) => {
         
         return response;
     } catch (error) {
+        const baseUrl = (() => {
+            try { return ensureAppUrl(); } catch { return ''; }
+        })();
+        const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
         const errorData = error?.response?.data;
         const errorMessage = typeof errorData === 'object' 
             ? JSON.stringify(errorData, null, 2)
             : (errorData || error?.message || 'Unknown error');
-        console.log(`API ERROR\nMethod: GET\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        console.log(`API ERROR\nMethod: GET\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
         if (error?.response?.status) {
             console.log(`Status: ${error.response.status}`);
         }
@@ -53,6 +68,7 @@ const get = async (endpoint, Token) => {
 
 const post = async (endpoint, data, Token) => {
     try {
+        const baseUrl = ensureAppUrl();
         // Token is REQUIRED for all API calls (except login/forgot-password)
         const headers = {
             'Accept': 'application/json',
@@ -66,19 +82,24 @@ const post = async (endpoint, data, Token) => {
             (data._parts !== undefined) // React Native FormData has _parts
         );
 
-        // Only set Content-Type for JSON, let axios set it automatically for FormData
+        // For JSON, we set application/json.
+        // For FormData (uploads), axios-on-RN is more reliable when explicitly
+        // using multipart/form-data (boundary is handled by the native layer).
         if (!isFormData) {
             headers['Content-Type'] = 'application/json';
+        } else {
+            headers['Content-Type'] = 'multipart/form-data';
         }
 
         if (Token) {
             headers['Authorization'] = `Bearer ${Token}`;
         }
 
-        const response = await axios.post(`${APP_URL}/api/${endpoint}`, data, { 
+        const url = `${baseUrl}/api/${endpoint}`;
+        const response = await axios.post(url, data, {
             headers,
-            // Ensure axios handles FormData correctly
-            transformRequest: isFormData ? [(data) => data] : undefined,
+            // Avoid custom transformRequest for FormData — it can break multipart in RN and cause Network Error
+            timeout: 30000,
         });
         
         // Handle case where response.data is a string with HTML warnings + JSON
@@ -97,7 +118,16 @@ const post = async (endpoint, data, Token) => {
         
         return response;
     } catch (error) {
-        console.log(`API ERROR\nMethod: POST\nEndpoint: ${endpoint}\nError: ${error?.response?.data || error?.message}`);
+        const baseUrl = (() => {
+            try { return ensureAppUrl(); } catch { return ''; }
+        })();
+        const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
+        const status = error?.response?.status;
+        const errorData = error?.response?.data;
+        const errorMessage = typeof errorData === 'object'
+            ? JSON.stringify(errorData, null, 2)
+            : (errorData || error?.message || 'Unknown error');
+        console.log(`API ERROR\nMethod: POST\nURL: ${url}\nEndpoint: ${endpoint}\nStatus: ${status ?? 'unknown'}\nError: ${errorMessage}`);
         throw error;
     }
 };
@@ -106,13 +136,31 @@ const post = async (endpoint, data, Token) => {
 
 const put = async (endpoint, Token, data) => {
     try {
-        const response = await axios.put(`${APP_URL}/api/${endpoint}`, data, {
-            headers: { Token },
-        });
+        const baseUrl = ensureAppUrl();
+        if (!Token) {
+            throw new Error('Authentication token is required');
+        }
+
+        const headers = {
+            'Authorization': `Bearer ${Token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        };
+
+        const url = `${baseUrl}/api/${endpoint}`;
+        const response = await axios.put(url, data, { headers });
         return response;
     } catch (error) {
-        console.log(`API ERROR\nMethod: PUT\nEndpoint: ${endpoint}\nError: ${error}`);
-        return null;
+        const baseUrl = (() => {
+            try { return ensureAppUrl(); } catch { return ''; }
+        })();
+        const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
+        const errorData = error?.response?.data;
+        const errorMessage = typeof errorData === 'object'
+            ? JSON.stringify(errorData, null, 2)
+            : (errorData || error?.message || 'Unknown error');
+        console.log(`API ERROR\nMethod: PUT\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        throw error;
     }
 };
 
@@ -134,13 +182,31 @@ const put = async (endpoint, Token, data) => {
 
 const remove = async (endpoint, Token) => {
     try {
-        const response = await axios.delete(`${APP_URL}/api/${endpoint}`, {
-            headers: { Token: Token },
-        });
+        const baseUrl = ensureAppUrl();
+        if (!Token) {
+            throw new Error('Authentication token is required');
+        }
+
+        const headers = {
+            'Authorization': `Bearer ${Token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        };
+
+        const url = `${baseUrl}/api/${endpoint}`;
+        const response = await axios.delete(url, { headers });
         return response;
     } catch (error) {
-        console.log(`API ERROR\nMethod: DELETE\nEndpoint: ${endpoint}\nError: ${error}`);
-        return null;
+        const baseUrl = (() => {
+            try { return ensureAppUrl(); } catch { return ''; }
+        })();
+        const url = baseUrl ? `${baseUrl}/api/${endpoint}` : `/api/${endpoint}`;
+        const errorData = error?.response?.data;
+        const errorMessage = typeof errorData === 'object'
+            ? JSON.stringify(errorData, null, 2)
+            : (errorData || error?.message || 'Unknown error');
+        console.log(`API ERROR\nMethod: DELETE\nURL: ${url}\nEndpoint: ${endpoint}\nError: ${errorMessage}`);
+        throw error;
     }
 };
 

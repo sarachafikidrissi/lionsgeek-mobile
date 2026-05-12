@@ -31,7 +31,7 @@ export default function ConversationDeletePopover({ conversationId, onDeleted })
                             } else {
                                 Alert.alert('Error', 'Failed to delete conversation');
                             }
-                        } catch (error) {
+                        } catch (_error) {
                             Alert.alert('Error', 'Failed to delete conversation');
                         } finally {
                             setDeleting(false);

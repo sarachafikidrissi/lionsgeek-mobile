@@ -1,93 +1,72 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
-// Component dial audio recording style Instagram m3a waves animation w timer
+/** Inline recorder strip shown while composing a voice note (parent owns timer). */
 export default function AudioRecorder({ onSend, onCancel, isRecording, recordingTime, isPaused, onPause, onResume }) {
-    const animationRef = useRef(null);
-    const barsRef = useRef([]);
+    const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
+    const [waveTick, setWaveTick] = useState(0);
+    const bars = useMemo(() => Array.from({ length: 32 }, (_, i) => i), []);
 
-    // Animation dial waves bach tban b7al real audio
     useEffect(() => {
-        if (!isRecording) {
-            if (animationRef.current) {
-                clearInterval(animationRef.current);
-            }
-            return;
-        }
+        if (!isRecording || isPaused) return;
+        const id = setInterval(() => setWaveTick((t) => t + 1), 120);
+        return () => clearInterval(id);
+    }, [isRecording, isPaused]);
 
-        const animate = () => {
-            barsRef.current.forEach((bar, index) => {
-                if (bar) {
-                    const level = Math.random() * 0.8 + 0.2;
-                    const height = (Math.sin(Date.now() / 100 + index * 0.5) * 0.5 + 0.5) * 100 * level;
-                    // In React Native, we'll use Animated API or just update style
-                }
-            });
-        };
-
-        animationRef.current = setInterval(animate, 50);
-        return () => {
-            if (animationRef.current) {
-                clearInterval(animationRef.current);
-            }
-        };
-    }, [isRecording]);
-
-    // Format dial time (MM:SS)
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const seed = (recordingTime + waveTick) % 9;
+
     return (
-        <View className="flex-row items-center gap-2 p-2 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-            <Pressable
-                onPress={onCancel}
-                className="h-8 w-8 items-center justify-center"
-            >
-                <Ionicons name="close" size={16} color="#ffc801" />
+        <View
+            className={`flex-row items-center gap-2 p-2 rounded-2xl border ${
+                isDark
+                    ? 'bg-zinc-900/95 border-white/[0.1] shadow-lg shadow-black/40'
+                    : 'bg-white border-black/[0.08] shadow-md shadow-black/10'
+            }`}
+        >
+            <Pressable onPress={onCancel} className="h-9 w-9 rounded-xl bg-red-500/12 items-center justify-center active:opacity-80">
+                <Ionicons name="trash-outline" size={18} color="#ef4444" />
             </Pressable>
 
-            {/* Pause/Resume Button */}
             {isPaused ? (
-                <Pressable
-                    onPress={onResume}
-                    className="h-8 w-8 items-center justify-center"
-                >
-                    <Ionicons name="play" size={16} color="#ffc801" />
+                <Pressable onPress={onResume} className="h-9 w-9 rounded-xl bg-alpha/20 items-center justify-center active:opacity-80">
+                    <Ionicons name="play" size={18} color="#ffc801" />
                 </Pressable>
             ) : (
-                <Pressable
-                    onPress={onPause}
-                    className="h-8 w-8 items-center justify-center"
-                >
-                    <Ionicons name="pause" size={16} color="#ffc801" />
+                <Pressable onPress={onPause} className="h-9 w-9 rounded-xl bg-black/[0.05] dark:bg-white/[0.08] items-center justify-center active:opacity-80">
+                    <Ionicons name="pause" size={18} color={isDark ? '#fff' : '#111'} />
                 </Pressable>
             )}
 
-            <View className="flex-1 flex-row items-center gap-2">
-                <View className={`h-3 w-3 bg-yellow-500 rounded-full ${isPaused ? '' : 'opacity-100'}`} />
-                <Text className="text-sm font-medium text-black dark:text-white tabular-nums min-w-[3rem]">
+            <View className="flex-1 flex-row items-center gap-2 min-w-0">
+                <View className={`h-2.5 w-2.5 rounded-full ${isPaused ? 'bg-neutral-400' : 'bg-red-500'}`} />
+                <Text className={`text-sm font-bold tabular-nums min-w-[3.25rem] ${isDark ? 'text-white' : 'text-black'}`}>
                     {formatTime(recordingTime)}
                 </Text>
-                <View className="flex-1 h-8 flex-row items-center justify-center gap-0.5">
-                    {Array.from({ length: 20 }).map((_, i) => (
-                        <View
-                            key={i}
-                            className={`w-0.5 bg-yellow-500 rounded-full ${isRecording && !isPaused ? 'opacity-100' : 'opacity-30'}`}
-                            style={{ height: 10 }}
-                        />
-                    ))}
+                <View className="flex-1 flex-row items-end justify-center gap-[2px] h-9 overflow-hidden">
+                    {bars.map((bar) => {
+                        const h = 6 + ((bar + seed) % 8) * 3;
+                        return (
+                            <View
+                                key={bar}
+                                className={`w-[3px] rounded-full ${isPaused ? 'bg-black/15 dark:bg-white/15' : 'bg-alpha/90'}`}
+                                style={{ height: h, opacity: isPaused ? 0.35 : 0.55 + (bar % 4) * 0.1 }}
+                            />
+                        );
+                    })}
                 </View>
             </View>
 
-            <Pressable
-                onPress={onSend}
-                className="h-9 w-9 items-center justify-center bg-yellow-500 rounded-lg"
-            >
-                <Ionicons name="send" size={16} color="#000" />
+            <Pressable onPress={onSend} className="h-10 w-10 items-center justify-center bg-alpha rounded-2xl active:opacity-90 shadow-sm shadow-black/15">
+                <Ionicons name="arrow-up" size={22} color="#000" />
             </Pressable>
         </View>
     );

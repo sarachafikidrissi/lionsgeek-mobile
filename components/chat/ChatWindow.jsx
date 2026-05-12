@@ -1,15 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Image, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, Image, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
+import { userHasAdminRole } from '@/components/helpers/helpers';
+
+function tryParsePostShare(body) {
+    if (!body) return null;
+    if (typeof body === 'object') {
+        return body?.type === 'post_share' && body?.post_id ? body : null;
+    }
+    if (typeof body !== 'string') return null;
+    const trimmed = body.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.type !== 'post_share' || !parsed?.post_id) return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+}
 
 export default function ChatWindow({ conversation, onBack }) {
     const { user, token } = useAppContext();
     const currentUser = user;
-    const router = useRouter();
     const [messages, setMessages] = useState(conversation.messages || []);
     const [newMessage, setNewMessage] = useState('');
     const [sending, setSending] = useState(false);
@@ -107,9 +124,11 @@ export default function ChatWindow({ conversation, onBack }) {
                     <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
                         {conversation.other_user?.name || 'User'}
                     </Text>
-                    <Text className="text-xs text-gray-500 dark:text-gray-400" numberOfLines={1}>
-                        {conversation.other_user?.email || ''}
-                    </Text>
+                    {userHasAdminRole(currentUser) && conversation.other_user?.email ? (
+                        <Text className="text-xs text-gray-500 dark:text-gray-400" numberOfLines={1}>
+                            {conversation.other_user.email}
+                        </Text>
+                    ) : null}
                 </View>
             </View>
 
@@ -121,7 +140,20 @@ export default function ChatWindow({ conversation, onBack }) {
             >
                 {loading && messages.length === 0 ? (
                     <View className="items-center justify-center h-full">
-                        <ActivityIndicator size="large" color="#ffc801" />
+                        <View style={{ width: '100%', paddingHorizontal: 16 }}>
+                            {Array.from({ length: 8 }).map((_, idx) => (
+                                <View
+                                    key={idx}
+                                    style={{
+                                        marginBottom: 10,
+                                        alignSelf: idx % 2 === 0 ? 'flex-start' : 'flex-end',
+                                        width: idx % 2 === 0 ? '76%' : '64%',
+                                    }}
+                                >
+                                    <Skeleton width="100%" height={34} borderRadius={12} isDark={false} />
+                                </View>
+                            ))}
+                        </View>
                     </View>
                 ) : messages.length === 0 ? (
                     <View className="items-center justify-center h-full">
@@ -149,9 +181,15 @@ export default function ChatWindow({ conversation, onBack }) {
                                             ? 'bg-yellow-500' 
                                             : 'bg-gray-200 dark:bg-gray-800'
                                         }`}>
-                                            <Text className={`text-sm ${isCurrentUser ? 'text-black' : 'text-black dark:text-white'}`}>
-                                                {message.body}
-                                            </Text>
+                                            {tryParsePostShare(message.body) ? (
+                                                <Text className={`text-sm font-semibold ${isCurrentUser ? 'text-black' : 'text-black dark:text-white'}`}>
+                                                    📌 Sent a post
+                                                </Text>
+                                            ) : message.body ? (
+                                                <Text className={`text-sm ${isCurrentUser ? 'text-black' : 'text-black dark:text-white'}`}>
+                                                    {typeof message.body === 'string' ? message.body : 'Sent a message'}
+                                                </Text>
+                                            ) : null}
                                             <Text className={`text-xs mt-1 ${isCurrentUser ? 'text-black/70' : 'text-gray-500 dark:text-gray-400'}`}>
                                                 {format(new Date(message.created_at), 'h:mm a')}
                                             </Text>
@@ -180,7 +218,7 @@ export default function ChatWindow({ conversation, onBack }) {
                     className={`h-11 px-4 items-center justify-center rounded-lg ${sending || !newMessage.trim() ? 'bg-gray-300 dark:bg-gray-700 opacity-50' : 'bg-yellow-500'}`}
                 >
                     {sending ? (
-                        <ActivityIndicator color="#000" />
+                        <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
                     ) : (
                         <Ionicons name="send" size={16} color="#000" />
                     )}

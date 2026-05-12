@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { View, Text, ScrollView, Image } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import API from '@/api';
 import AppLayout from '@/components/layout/AppLayout';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
 import { Colors } from '@/constants/Colors';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function ReservationDetails() {
   const { id } = useLocalSearchParams();
@@ -36,8 +37,14 @@ export default function ReservationDetails() {
 
   if (loading) return (
     <AppLayout>
-      <View className="flex-1 justify-center items-center">
-        <ActivityIndicator size="large" color={Colors.alpha} />
+      <View style={{ flex: 1, padding: 16 }}>
+        <Skeleton width="78%" height={28} borderRadius={12} isDark={isDark} />
+        <View style={{ height: 18 }} />
+        <Skeleton width={210} height={30} borderRadius={999} isDark={isDark} />
+        <View style={{ height: 22 }} />
+        <Skeleton width="100%" height={180} borderRadius={16} isDark={isDark} />
+        <View style={{ height: 16 }} />
+        <Skeleton width="100%" height={220} borderRadius={16} isDark={isDark} />
       </View>
     </AppLayout>
   );

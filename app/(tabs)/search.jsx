@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Image, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Image, Pressable } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import { router } from 'expo-router';
 import API from '@/api';
+import Skeleton from '@/components/ui/Skeleton';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function SearchScreen() {
-  const { token } = useAppContext();
+  const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,11 +94,8 @@ export default function SearchScreen() {
     { value: 'hashtags', label: 'Hashtags', icon: 'pricetag-outline' },
   ];
 
-  const getImageUrl = (item) => {
-    if (item?.avatar) return item.avatar;
-    if (item?.image) return `${API.APP_URL}/storage/img/profile/${item.image}`;
-    return null;
-  };
+  console.log();
+
 
   return (
     <AppLayout showNavbar={false}>
@@ -122,9 +121,9 @@ export default function SearchScreen() {
               onSubmitEditing={handleSearch}
               autoCapitalize="none"
             />
-            {(isTyping || loading) && (
-              <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
-            )}
+            {(isTyping || loading) ? (
+              <Skeleton width={16} height={16} borderRadius={8} isDark={isDark} />
+            ) : null}
             {searchQuery.length > 0 && !isTyping && !loading && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
                 <Ionicons name="close-circle" size={20} color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />
@@ -139,11 +138,10 @@ export default function SearchScreen() {
                 <Pressable
                   key={btn.value}
                   onPress={() => setSearchType(btn.value)}
-                  className={`px-4 py-2 rounded-full flex-row items-center ${
-                    searchType === btn.value
-                      ? 'bg-alpha dark:bg-alpha'
-                      : 'bg-light/50 dark:bg-dark/50'
-                  }`}
+                  className={`px-4 py-2 rounded-full flex-row items-center ${searchType === btn.value
+                    ? 'bg-alpha dark:bg-alpha'
+                    : 'bg-light/50 dark:bg-dark/50'
+                    }`}
                 >
                   <Ionicons
                     name={btn.icon}
@@ -151,11 +149,10 @@ export default function SearchScreen() {
                     color={searchType === btn.value ? (isDark ? '#000' : '#000') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)')}
                   />
                   <Text
-                    className={`ml-2 text-sm font-medium ${
-                      searchType === btn.value
-                        ? 'text-black'
-                        : 'text-black/60 dark:text-white/60'
-                    }`}
+                    className={`ml-2 text-sm font-medium ${searchType === btn.value
+                      ? 'text-black'
+                      : 'text-black/60 dark:text-white/60'
+                      }`}
                   >
                     {btn.label}
                   </Text>
@@ -172,11 +169,10 @@ export default function SearchScreen() {
                   <Pressable
                     key={btn.value}
                     onPress={() => setFilter(btn.value)}
-                    className={`px-4 py-2 rounded-full flex-row items-center ${
-                      filter === btn.value
-                        ? 'bg-alpha dark:bg-alpha'
-                        : 'bg-light/50 dark:bg-dark/50'
-                    }`}
+                    className={`px-4 py-2 rounded-full flex-row items-center ${filter === btn.value
+                      ? 'bg-alpha dark:bg-alpha'
+                      : 'bg-light/50 dark:bg-dark/50'
+                      }`}
                   >
                     <Ionicons
                       name={btn.icon}
@@ -184,11 +180,10 @@ export default function SearchScreen() {
                       color={filter === btn.value ? (isDark ? '#000' : '#000') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)')}
                     />
                     <Text
-                      className={`ml-2 text-sm font-medium ${
-                        filter === btn.value
-                          ? 'text-black'
-                          : 'text-black/60 dark:text-white/60'
-                      }`}
+                      className={`ml-2 text-sm font-medium ${filter === btn.value
+                        ? 'text-black'
+                        : 'text-black/60 dark:text-white/60'
+                        }`}
                     >
                       {btn.label}
                     </Text>
@@ -203,18 +198,52 @@ export default function SearchScreen() {
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           <View className="px-6 pt-4 pb-8">
             {isTyping ? (
-              <View className="py-8 items-center">
-                <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-                <Text className="text-center text-black/60 dark:text-white/60 mt-4">
-                  Typing...
-                </Text>
+              <View style={{ paddingTop: 10 }}>
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      marginBottom: 12,
+                      padding: 16,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Skeleton width={48} height={48} borderRadius={24} isDark={isDark} />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Skeleton width={180} height={12} borderRadius={10} isDark={isDark} />
+                      <View style={{ height: 8 }} />
+                      <Skeleton width={220} height={10} borderRadius={10} isDark={isDark} />
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : loading ? (
-              <View className="py-8 items-center">
-                <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-                <Text className="text-center text-black/60 dark:text-white/60 mt-4">
-                  Searching...
-                </Text>
+              <View style={{ paddingTop: 10 }}>
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      marginBottom: 12,
+                      padding: 16,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Skeleton width={48} height={48} borderRadius={24} isDark={isDark} />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Skeleton width={180} height={12} borderRadius={10} isDark={isDark} />
+                      <View style={{ height: 8 }} />
+                      <Skeleton width={220} height={10} borderRadius={10} isDark={isDark} />
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : results.length === 0 && searchQuery.length > 0 ? (
               <View className="py-8 items-center">
@@ -246,25 +275,35 @@ export default function SearchScreen() {
                   >
                     {item.type === 'user' ? (
                       <>
-                        <Image
-                          source={{ uri: `${API.APP_URL}/storage/img/profile/${item.image}` }}
-                          className="w-12 h-12 rounded-full mr-3"
-                          defaultSource={require('@/assets/images/icon.png')}
-                        />
+                        {
+                          item.image ? (
+                            <Image
+                              source={{ uri: API.APP_URL + "/storage/img/profile/" + item.image }}
+                              className="w-12 h-12 rounded-full mr-3"
+                              defaultSource={require('@/assets/images/icon.png')}
+                            />
+                          ) : (
+                            <View className="w-12 h-12 rounded-full mr-3 feed">
+                              <Ionicons name="person-outline" size={24} color={isDark ? '#fff' : '#000'} />
+                            </View>
+                          )
+                        }
                         <View className="flex-1">
                           <Text className="text-base font-semibold text-black dark:text-white">
                             {item.name}
                           </Text>
-                          <Text className="text-sm text-black/60 dark:text-white/60">
-                            {item.email}
-                          </Text>
+                          {userHasAdminRole(user) && item.email ? (
+                            <Text className="text-sm text-black/60 dark:text-white/60">
+                              {item.email}
+                            </Text>
+                          ) : null}
                           <View className="flex-row items-center mt-1">
                             {item.promo && (
                               <Text className="text-xs text-black/50 dark:text-white/50 mr-2">
-                                {item.promo}
+                                Promo {item.promo}
                               </Text>
                             )}
-                            {item.roles && item.roles.length > 0 && (
+                            {/* {item.roles && item.roles.length > 0 && (
                               <View className="flex-row">
                                 {item.roles.slice(0, 2).map((role, idx) => (
                                   <View key={idx} className="px-2 py-0.5 rounded-full bg-alpha/20 mr-1">
@@ -274,7 +313,7 @@ export default function SearchScreen() {
                                   </View>
                                 ))}
                               </View>
-                            )}
+                            )} */}
                           </View>
                         </View>
                         <Ionicons name="chevron-forward" size={20} color={isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'} />

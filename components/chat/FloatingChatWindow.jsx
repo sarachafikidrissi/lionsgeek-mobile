@@ -1,10 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Image, ScrollView, TextInput, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, Pressable, Image, ScrollView, TextInput, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import VoiceMessage from './VoiceMessage';
+import Skeleton from '@/components/ui/Skeleton';
+
+function tryParsePostShare(body) {
+    if (!body) return null;
+    if (typeof body === 'object') {
+        return body?.type === 'post_share' && body?.post_id ? body : null;
+    }
+    if (typeof body !== 'string') return null;
+    const trimmed = body.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.type !== 'post_share' || !parsed?.post_id) return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+}
 
 export default function FloatingChatWindow({ conversation, onClose, onMinimize, onExpand, isMinimized, isExpanded }) {
     const { user, token } = useAppContext();
@@ -14,7 +32,6 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
     const [sending, setSending] = useState(false);
     const [loading, setLoading] = useState(false);
     const [attachment, setAttachment] = useState(null);
-    const [isPlayingAudio, setIsPlayingAudio] = useState(null);
     const messagesEndRef = useRef(null);
 
     useEffect(() => {
@@ -105,13 +122,9 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
         return String(senderId) === String(currentUser.id);
     };
 
-    const handlePlayAudio = (audioPath, messageId) => {
-        // Audio playback handled by VoiceMessage component
-        setIsPlayingAudio(isPlayingAudio === messageId ? null : messageId);
-    };
-
     const renderMessage = (message) => {
         const isCurrentUser = isCurrentUserMessage(message.sender_id);
+        const postShare = tryParsePostShare(message.body);
         const imageUrl = message.attachment_path?.startsWith('/storage/') || message.attachment_path?.startsWith('http')
             ? message.attachment_path
             : `${API.APP_URL}/storage/${message.attachment_path}`;
@@ -122,9 +135,13 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
                     ? 'bg-yellow-500' 
                     : 'bg-gray-200 dark:bg-gray-800'
                 }`}>
-                    {message.body && (
-                        <Text className="text-black dark:text-white">{message.body}</Text>
-                    )}
+                    {postShare ? (
+                        <Text className="text-black dark:text-white font-semibold">📌 Sent a post</Text>
+                    ) : message.body ? (
+                        <Text className="text-black dark:text-white">
+                            {typeof message.body === 'string' ? message.body : 'Sent a message'}
+                        </Text>
+                    ) : null}
                     
                     {message.attachment_type === 'image' && message.attachment_path && (
                         <Image 
@@ -197,7 +214,7 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
                                     ? '📷 Image'
                                     : lastMessage.attachment_type === 'file'
                                     ? '📎 File'
-                                    : lastMessage.body}
+                                    : (tryParsePostShare(lastMessage.body) ? '📌 Post' : (typeof lastMessage.body === 'string' ? lastMessage.body : 'Message'))}
                             </Text>
                         )}
                     </View>
@@ -271,7 +288,20 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
             >
                 {loading && messages.length === 0 ? (
                     <View className="items-center justify-center h-full">
-                        <ActivityIndicator size="small" color="#ffc801" />
+                        <View style={{ width: '100%', paddingHorizontal: 12 }}>
+                            {Array.from({ length: 7 }).map((_, idx) => (
+                                <View
+                                    key={idx}
+                                    style={{
+                                        marginBottom: 8,
+                                        alignSelf: idx % 2 === 0 ? 'flex-start' : 'flex-end',
+                                        width: idx % 2 === 0 ? '78%' : '60%',
+                                    }}
+                                >
+                                    <Skeleton width="100%" height={32} borderRadius={12} isDark={false} />
+                                </View>
+                            ))}
+                        </View>
                     </View>
                 ) : messages.length === 0 ? (
                     <View className="items-center justify-center h-full">
@@ -318,7 +348,7 @@ export default function FloatingChatWindow({ conversation, onClose, onMinimize, 
                     className={`h-9 w-9 items-center justify-center rounded-lg ${sending || (!newMessage.trim() && !attachment) ? 'bg-gray-300 dark:bg-gray-700 opacity-50' : 'bg-yellow-500'}`}
                 >
                     {sending ? (
-                        <ActivityIndicator color="#000" size="small" />
+                        <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
                     ) : (
                         <Ionicons name="send" size={16} color="#000" />
                     )}

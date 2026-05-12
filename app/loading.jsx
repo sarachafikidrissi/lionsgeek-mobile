@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { useEffect } from 'react';
+import { View } from 'react-native';
 import { useAppContext } from '@/context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,17 +16,20 @@ export default function LoadingScreen() {
   useEffect(() => {
     const verifyAndLogin = async () => {
       try {
-        // Check onboarding
+        // Check token first — logged-in users should not be forced through onboarding.
+        const token = await AsyncStorage.getItem('auth_token');
+        const storedUser = await AsyncStorage.getItem('auth_user');
+        const tokenStr = typeof token === 'string' ? token.trim() : '';
+        const hasValidToken =
+          !!tokenStr && tokenStr !== 'false' && tokenStr !== 'null' && tokenStr !== 'undefined';
+
+        // Check onboarding (only relevant for logged-out users)
         const seen = await AsyncStorage.getItem('onboarding_seen');
-        if (seen !== '1') {
+        if (seen !== '1' && !hasValidToken) {
           console.log('[LOADING] Onboarding not seen, redirecting to onboarding');
           router.replace('/onboarding');
           return;
         }
-
-        // Check token
-        const token = await AsyncStorage.getItem('auth_token');
-        const storedUser = await AsyncStorage.getItem('auth_user');
         
         console.log('[LOADING] Token check:', { 
           hasToken: !!token, 
@@ -38,7 +41,7 @@ export default function LoadingScreen() {
           hasStoredUser: !!storedUser 
         });
         
-        if (!token || token === 'false' || token === 'null' || token.trim() === '') {
+        if (!hasValidToken) {
           console.log('[LOADING] No valid token found, redirecting to login');
           await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
           router.replace('/auth/login');
@@ -47,7 +50,7 @@ export default function LoadingScreen() {
 
         // Verify token with backend
         try {
-          const response = await API.getWithAuth('mobile/profile', token);
+          const response = await API.getWithAuth('mobile/profile', tokenStr);
           
           if (response?.data) {
             // Token is valid, update user data from response
@@ -62,7 +65,7 @@ export default function LoadingScreen() {
             console.log('[LOADING] User data received:', JSON.stringify(userData, null, 2));
             
             // Store full user data
-            await saveAuth(token, userData);
+            await saveAuth(tokenStr, userData);
             
             // Register for push notifications and send token to backend
             try {
@@ -100,13 +103,6 @@ export default function LoadingScreen() {
   return (
     <View className={`flex-1 items-center justify-center bg-light dark:bg-dark`}>
       <LogoIcon color={isDark ? '#fff' : '#000'} width={120} height={120} />
-      <Text className="text-3xl font-bold text-black dark:text-white mt-6 mb-2">
-        LIONSGEEK
-      </Text>
-      <Text className="text-sm text-black/60 dark:text-white/60 mb-8">
-        Loading...
-      </Text>
-      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
     </View>
   );
 }

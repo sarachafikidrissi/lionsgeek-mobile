@@ -1,79 +1,57 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 
-export default function VoiceMessage({ 
-    audioUrl, 
-    duration, 
-    isCurrentUser,
-    onPlayStateChange 
-}) {
+export default function VoiceMessage({ audioUrl, duration, isCurrentUser, onPlayStateChange }) {
     const [isPlaying, setIsPlaying] = useState(false);
-    const [progress, setProgress] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
     const soundRef = useRef(null);
-    const progressIntervalRef = useRef(null);
+    const bars = useMemo(() => Array.from({ length: 28 }, (_, i) => i), []);
 
-    // Format time as 0:00:06 (HH:MM:SS or MM:SS)
     const formatTime = (seconds) => {
         if (!seconds || isNaN(seconds)) return '0:00';
         const hours = Math.floor(seconds / 3600);
         const mins = Math.floor((seconds % 3600) / 60);
         const secs = Math.floor(seconds % 60);
-        
         if (hours > 0) {
             return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Play/pause toggle
     const togglePlayback = async () => {
         try {
             if (!soundRef.current) {
-                const { sound } = await Audio.Sound.createAsync(
-                    { uri: audioUrl },
-                    { shouldPlay: true }
-                );
+                const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: true });
                 soundRef.current = sound;
-                
+
                 sound.setOnPlaybackStatusUpdate((status) => {
                     if (status.isLoaded) {
                         setCurrentTime(status.positionMillis / 1000);
-                        setProgress((status.positionMillis / status.durationMillis) * 100);
                         setIsPlaying(status.isPlaying);
-                        
+
                         if (status.didJustFinish) {
                             setIsPlaying(false);
-                            setProgress(0);
                             setCurrentTime(0);
-                            if (onPlayStateChange) {
-                                onPlayStateChange(false);
-                            }
+                            onPlayStateChange?.(false);
                         }
                     }
                 });
-                
+
                 setIsPlaying(true);
-                if (onPlayStateChange) {
-                    onPlayStateChange(true);
-                }
+                onPlayStateChange?.(true);
             } else {
                 const status = await soundRef.current.getStatusAsync();
                 if (status.isLoaded) {
                     if (status.isPlaying) {
                         await soundRef.current.pauseAsync();
                         setIsPlaying(false);
-                        if (onPlayStateChange) {
-                            onPlayStateChange(false);
-                        }
+                        onPlayStateChange?.(false);
                     } else {
                         await soundRef.current.playAsync();
                         setIsPlaying(true);
-                        if (onPlayStateChange) {
-                            onPlayStateChange(true);
-                        }
+                        onPlayStateChange?.(true);
                     }
                 }
             }
@@ -82,68 +60,64 @@ export default function VoiceMessage({
         }
     };
 
-    // Cleanup on unmount
     useEffect(() => {
         return async () => {
             if (soundRef.current) {
                 await soundRef.current.unloadAsync();
             }
-            if (progressIntervalRef.current) {
-                clearInterval(progressIntervalRef.current);
-            }
         };
     }, []);
 
+    const safeDuration = Math.max(duration || 0, 1);
+    const progress = Math.min((currentTime || 0) / safeDuration, 1);
+    const activeBars = Math.max(1, Math.round(progress * bars.length));
+
+    const playBg = isCurrentUser ? 'bg-black/90' : 'bg-alpha';
+    const playIcon = isCurrentUser ? '#ffc801' : '#000';
+    const barPlayed = isCurrentUser ? 'bg-alpha' : 'bg-alpha';
+    const barIdle = isCurrentUser ? 'bg-white/35' : 'bg-black/20 dark:bg-white/25';
+    const textMain = isCurrentUser ? 'text-white' : 'text-black dark:text-white';
+    const textSub = isCurrentUser ? 'text-white/70' : 'text-black/55 dark:text-white/55';
+    const trackBg = isCurrentUser ? 'bg-white/20' : 'bg-black/10 dark:bg-white/15';
+    const trackFill = isCurrentUser ? 'bg-alpha' : 'bg-alpha';
+
     return (
-        <View className={`flex-row items-center gap-3 ${isCurrentUser ? 'text-white' : 'text-black dark:text-white'}`}>
-            {/* Simple circular play button */}
+        <View className="flex-row items-center gap-3 px-3 py-2.5">
             <Pressable
                 onPress={togglePlayback}
-                className={`h-9 w-9 rounded-full items-center justify-center ${isCurrentUser ? 'bg-white' : 'bg-white border border-gray-200 dark:border-gray-700'}`}
+                className={`h-11 w-11 rounded-full items-center justify-center shadow-sm ${playBg}`}
             >
                 {isPlaying ? (
-                    <Ionicons name="pause" size={16} color={isCurrentUser ? '#000' : '#000'} />
+                    <Ionicons name="pause" size={20} color={playIcon} />
                 ) : (
-                    <Ionicons name="play" size={16} color={isCurrentUser ? '#000' : '#000'} style={{ marginLeft: 2 }} />
+                    <Ionicons name="play" size={20} color={playIcon} style={{ marginLeft: 2 }} />
                 )}
             </Pressable>
 
-            {/* Waveform bars - always visible, animated when playing */}
-            <View className="flex-row items-end gap-1 h-6 px-2">
-                {[...Array(5)].map((_, i) => {
-                    const baseHeights = [12, 18, 14, 20, 16];
-                    const baseHeight = baseHeights[i];
-                    
-                    return (
-                        <View
-                            key={i}
-                            className={`w-1 rounded-full ${isCurrentUser ? 'bg-white' : 'bg-black dark:bg-white'}`}
-                            style={{
-                                height: isPlaying ? baseHeight + Math.sin(Date.now() / 100 + i) * 5 : baseHeight,
-                                opacity: isPlaying ? 1 : 0.6,
-                                minHeight: 8
-                            }}
-                        />
-                    );
-                })}
-            </View>
-
-            {/* Duration display */}
             <View className="flex-1 min-w-0">
-                {isPlaying ? (
-                    <>
-                        <Text className={`text-xs font-medium tabular-nums ${isCurrentUser ? 'text-white/90' : 'text-black/90 dark:text-white/90'}`}>
-                            {formatTime(currentTime || 0)}
-                        </Text>
-                        <Text className={`text-xs tabular-nums opacity-70 ${isCurrentUser ? 'text-white/70' : 'text-black/70 dark:text-white/70'}`}>
-                            {formatTime(duration || 0)}
-                        </Text>
-                    </>
-                ) : (
-                    <Text className={`text-sm font-medium tabular-nums ${isCurrentUser ? 'text-white' : 'text-black dark:text-white'}`}>
-                        {formatTime(duration || 0)}
-                    </Text>
-                )}
+                <View className="flex-row items-end justify-between gap-1 h-9 px-0.5">
+                    {bars.map((bar) => {
+                        const h = Math.round(5 + (bar % 6) * 2.5);
+                        const active = bar < activeBars;
+                        return (
+                            <View
+                                key={bar}
+                                className={`rounded-full ${active ? barPlayed : barIdle}`}
+                                style={{
+                                    width: 3,
+                                    height: isPlaying && active ? h + 3 : h,
+                                    opacity: active ? 1 : 0.45,
+                                }}
+                            />
+                        );
+                    })}
+                </View>
+                <View className={`h-1 rounded-full mt-2 overflow-hidden ${trackBg}`}>
+                    <View className={`h-full ${trackFill}`} style={{ width: `${Math.round(progress * 100)}%` }} />
+                </View>
+                <Text className={`text-[11px] font-semibold tabular-nums mt-1.5 ${textMain}`}>
+                    {formatTime(currentTime || 0)} <Text className={textSub}>/ {formatTime(duration || 0)}</Text>
+                </Text>
             </View>
         </View>
     );

@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, RefreshControl, ScrollView, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, RefreshControl, ScrollView, Modal } from 'react-native';
 import AppLayout from '@/components/layout/AppLayout';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppContext } from '@/context';
@@ -9,6 +9,7 @@ import { Colors } from '@/constants/Colors';
 import { format, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, startOfWeek, endOfWeek, addDays } from 'date-fns';
 import NewReservation from './reserve';
 import NewCoworkReservation from './reserveCowork';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function DayView() {
   const { date, tab, reservations: reservationsParam, reservationsCowork: reservationsCoworkParam, place: placeParam } = useLocalSearchParams();
@@ -307,15 +308,9 @@ export default function DayView() {
           alignItems: 'center',
           backgroundColor: isDark ? Colors.dark : Colors.light,
         }}>
-          <ActivityIndicator size="large" color={Colors.alpha} />
-          <Text style={{ 
-            marginTop: 16, 
-            fontSize: 16, 
-            fontWeight: '600',
-            color: isDark ? Colors.light : Colors.beta 
-          }}>
-            Loading reservations...
-          </Text>
+          <Skeleton width={26} height={26} borderRadius={13} isDark={false} />
+          <View style={{ height: 14 }} />
+          <Skeleton width={220} height={14} borderRadius={12} isDark={isDark} />
         </View>
       </AppLayout>
     );

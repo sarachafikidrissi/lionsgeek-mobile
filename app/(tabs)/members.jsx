@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, Pressable } from 'react-native';
 import { useAppContext } from '@/context';
 import { router } from 'expo-router';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
+import Skeleton from '@/components/ui/Skeleton';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function MembersScreen() {
   const { user: currentUser, token } = useAppContext();
@@ -97,9 +99,37 @@ export default function MembersScreen() {
         {/* Members List */}
         <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
           {loading ? (
-            <View className="flex-1 justify-center items-center py-20">
-              <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-              <Text className="text-sm text-black/60 dark:text-white/60 mt-4">Loading members...</Text>
+            <View>
+              {Array.from({ length: 10 }).map((_, idx) => (
+                <View
+                  key={idx}
+                  style={{
+                    marginBottom: 12,
+                    padding: 16,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Skeleton width={48} height={48} borderRadius={24} isDark={isDark} />
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Skeleton width={170} height={12} borderRadius={10} isDark={isDark} />
+                    <View style={{ height: 8 }} />
+                    <Skeleton width={220} height={10} borderRadius={10} isDark={isDark} />
+                    <View style={{ height: 10 }} />
+                    <View style={{ flexDirection: 'row' }}>
+                      <Skeleton width={54} height={16} borderRadius={999} isDark={isDark} />
+                      <View style={{ width: 8 }} />
+                      <Skeleton width={44} height={16} borderRadius={999} isDark={isDark} />
+                    </View>
+                  </View>
+                  <View style={{ width: 18, height: 18, opacity: 0.5 }}>
+                    <Skeleton width={18} height={18} borderRadius={9} isDark={isDark} />
+                  </View>
+                </View>
+              ))}
             </View>
           ) : members.length === 0 ? (
             <View className="flex-1 justify-center items-center py-20">
@@ -138,11 +168,11 @@ export default function MembersScreen() {
                       <Text className="text-base font-semibold text-black dark:text-white">
                         {member.name || member.username || 'Unknown'}
                       </Text>
-                      {member.email && (
+                      {userHasAdminRole(currentUser) && member.email ? (
                         <Text className="text-sm text-black/60 dark:text-white/60">
                           {member.email}
                         </Text>
-                      )}
+                      ) : null}
                       <View className="flex-row items-center mt-1">
                         {member.promo && (
                           <Text className="text-xs text-black/50 dark:text-white/50 mr-2">

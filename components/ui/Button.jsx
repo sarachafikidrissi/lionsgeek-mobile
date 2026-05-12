@@ -1,4 +1,5 @@
-import { Pressable, Text, ActivityIndicator } from 'react-native';
+import { Pressable, Text } from 'react-native';
+import Skeleton from '@/components/ui/Skeleton';
 
 /**
  * Reusable Button component with variants and sizes
@@ -73,7 +74,7 @@ export default function Button({
       className={`${sizeClasses} ${variantClasses} rounded-lg items-center justify-center ${disabled || loading ? 'opacity-50' : ''} ${className}`}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'default' ? '#000' : '#fff'} />
+        <Skeleton width={18} height={18} borderRadius={9} isDark={variant !== 'default'} />
       ) : (
         <Text className={textClasses}>{children}</Text>
       )}

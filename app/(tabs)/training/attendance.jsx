@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, RefreshControl, Pressable, ActivityIndicator, StyleSheet, TextInput, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Pressable, StyleSheet, TextInput, Alert } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppContext } from '@/context';
@@ -9,6 +9,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function Attendance() {
   const { id, date } = useLocalSearchParams();
@@ -307,7 +308,24 @@ export default function Attendance() {
         {/* Attendance List */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.alpha} />
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <View
+                key={idx}
+                style={{
+                  marginHorizontal: 20,
+                  marginBottom: 16,
+                  borderRadius: 16,
+                  padding: 16,
+                  backgroundColor: isDark ? Colors.dark_gray : Colors.light,
+                }}
+              >
+                <Skeleton width={180} height={16} borderRadius={10} isDark={isDark} />
+                <View style={{ height: 14 }} />
+                <Skeleton width="100%" height={46} borderRadius={12} isDark={isDark} />
+                <View style={{ height: 12 }} />
+                <Skeleton width="100%" height={46} borderRadius={12} isDark={isDark} />
+              </View>
+            ))}
           </View>
         ) : (
           <View style={styles.attendanceList}>
@@ -381,7 +399,7 @@ export default function Attendance() {
               style={[styles.saveButton, saving && styles.saveButtonDisabled]}
             >
               {saving ? (
-                <ActivityIndicator size="small" color={Colors.light} />
+                <Skeleton width={18} height={18} borderRadius={9} isDark={false} />
               ) : (
                 <>
                   <Ionicons name="save-outline" size={20} color={Colors.light} />

@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, Pressable } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter, router as routerDirect } from 'expo-router';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import AppLayout from '@/components/layout/AppLayout';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
+import Skeleton from '@/components/ui/Skeleton';
 export default function QRScanner() {
   const { id, trainingId } = useLocalSearchParams();
   const colorScheme = useColorScheme();
@@ -321,7 +321,11 @@ export default function QRScanner() {
   if (!permission) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color={Colors.alpha} />
+        <View style={{ paddingHorizontal: 24, paddingTop: 120, alignItems: 'center' }}>
+          <Skeleton width={240} height={18} borderRadius={12} isDark={isDark} />
+          <View style={{ height: 14 }} />
+          <Skeleton width={180} height={14} borderRadius={12} isDark={isDark} />
+        </View>
       </View>
     );
   }
@@ -382,8 +386,8 @@ export default function QRScanner() {
           <View style={styles.instructionsContainer(isDark)}>
             {processing ? (
               <View style={styles.processingContainer}>
-                <ActivityIndicator size="large" color={Colors.alpha} />
-                <Text style={styles.instructionsText(isDark)}>Processing...</Text>
+                <Skeleton width={28} height={28} borderRadius={14} isDark={false} />
+                <Text style={styles.instructionsText(isDark)}>Processing…</Text>
               </View>
             ) : (
               <>

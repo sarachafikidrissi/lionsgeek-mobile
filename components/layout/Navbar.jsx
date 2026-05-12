@@ -1,9 +1,10 @@
-import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
+import { Home as LogoIcon } from '@/components/logo';
 
 export default function Navbar() {
   const { user } = useAppContext();
@@ -18,6 +19,10 @@ export default function Navbar() {
     router.push('/(tabs)/search');
   };
 
+  const handleChatPress = () => {
+    router.push('/chat');
+  };
+
   const handleNotificationsPress = () => {
     router.push('/(tabs)/notifications');
   };
@@ -28,15 +33,15 @@ export default function Navbar() {
   // Helper function to get avatar URL - always use /storage/img/profile/
   const getAvatarUrl = () => {
     if (!user) return null;
-    
+
     const avatar = user?.avatar;
     const image = user?.image;
-    
+
     // First try avatar (might be full URL from API)
     const avatarValue = avatar || image;
-    
+
     if (!avatarValue) return null;
-    
+
     // If it's already a full URL, check if it needs to be corrected
     if (typeof avatarValue === 'string' && (avatarValue.startsWith('http://') || avatarValue.startsWith('https://'))) {
       // If it's a full URL but doesn't include img/profile/, extract filename and reconstruct
@@ -49,7 +54,7 @@ export default function Navbar() {
       }
       return avatarValue;
     }
-    
+
     if (typeof avatarValue === 'string') {
       // If it includes storage/ but not img/profile/, extract filename
       if (avatarValue.includes('storage/') && !avatarValue.includes('img/profile/')) {
@@ -68,7 +73,7 @@ export default function Navbar() {
       // If it's just a filename, use storage/img/profile/
       return `${API.APP_URL}/storage/img/profile/${avatarValue}`;
     }
-    
+
     return null;
   };
 
@@ -93,7 +98,7 @@ export default function Navbar() {
   return (
     <View className={`bg-light dark:bg-dark border-b border-light/20 dark:border-dark/20 px-6 pt-12 pb-4`}>
       <View className="flex-row items-center justify-between">
-        <TouchableOpacity 
+        {/* <TouchableOpacity 
           onPress={handleProfilePress}
           className="flex-row items-center flex-1"
         >
@@ -130,11 +135,19 @@ export default function Navbar() {
               {user?.email || ''}
             </Text>
           </View>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
+        <View className="flex-row items-center  ">
+          {/* :: Logo here */}
+          <LogoIcon color={isDark ? '#fff' : '#000'} width={30} height={30} />
+          {/* <Text className="text-xl font-semibold text-black dark:text-white mb-1">LionsGeek</Text> */}
+        </View>
 
         <View className="flex-row items-center">
           <TouchableOpacity className="mr-4" onPress={handleSearchPress}>
             <Ionicons name="search-outline" size={24} color={isDark ? '#fff' : '#000'} />
+          </TouchableOpacity>
+          <TouchableOpacity className="mr-4" onPress={handleChatPress}>
+            <Ionicons name="chatbubbles-outline" size={24} color={isDark ? '#fff' : '#000'} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleNotificationsPress}>
             <Ionicons name="notifications-outline" size={24} color={isDark ? '#fff' : '#000'} />

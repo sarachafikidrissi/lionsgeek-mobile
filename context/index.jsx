@@ -1,17 +1,23 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { useColorScheme } from "react-native";
+import { colorScheme as nwColorScheme } from "nativewind";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const THEME_STORAGE_KEY = 'app_theme_preference';
 
 const appContext = createContext();
 
 const AppProvider = ({ children }) => {
     const [language, setLanguage] = useState("en");
-    const [darkMode, setDarkMode] = useState(useColorScheme() == "dark");
     const [token, setToken] = useState(null);
     const [user, setUser] = useState(null);
+    // Mirror NativeWind's reactive colorScheme into local state so consumers re-render on toggle
+    const systemScheme = useColorScheme();
+    const [colorScheme, setColorSchemeState] = useState(systemScheme ?? 'light');
 
     useEffect(() => {
         (async () => {
+            // Restore auth session
             const t = await AsyncStorage.getItem('auth_token');
             const u = await AsyncStorage.getItem('auth_user');
             if (t && t !== 'false' && t !== 'null' && t.trim() !== '') {
@@ -26,6 +32,13 @@ const AppProvider = ({ children }) => {
                 } catch (e) {
                     console.error('[CONTEXT] Failed to parse user data:', e);
                 }
+            }
+
+            // Restore saved theme preference and apply to NativeWind
+            const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+            if (savedTheme === 'dark' || savedTheme === 'light') {
+                nwColorScheme.set(savedTheme);
+                setColorSchemeState(savedTheme);
             }
         })();
     }, []);
@@ -73,11 +86,25 @@ const AppProvider = ({ children }) => {
         await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
     };
 
+    /**
+     * Applies and persists a theme change ('dark' | 'light').
+     * Uses NativeWind's colorScheme singleton so all dark: classes update immediately.
+     */
+    const setTheme = async (theme) => {
+        nwColorScheme.set(theme);
+        setColorSchemeState(theme);
+        try {
+            await AsyncStorage.setItem(THEME_STORAGE_KEY, theme);
+        } catch (error) {
+            console.error('[CONTEXT] Failed to persist theme:', error);
+        }
+    };
+
     const appValue = {
         language,
         setLanguage,
-        darkMode,
-        setDarkMode,
+        colorScheme,
+        setTheme,
         token,
         user,
         saveAuth,

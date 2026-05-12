@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled, onStopRecordingRef, onSendAudioDirect }) {
     const [isRecording, setIsRecording] = useState(false);
@@ -14,6 +15,7 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
     const recordingRef = useRef(null);
     const timerRef = useRef(null);
     const touchStartTimeRef = useRef(null);
+    const waveBars = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
 
     // Format time as MM:SS
     const formatTime = (seconds) => {
@@ -93,7 +95,6 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
                 const duration = Math.round(status.durationMillis / 1000) || recordingTime;
                 
                 // Create file object for upload
-                const filename = uri.split('/').pop();
                 const fileType = 'audio/m4a'; // iOS/Android default
                 
                 if (shouldSendDirectlyRef.current && onSendAudioDirect) {
@@ -208,57 +209,64 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
     }, [isRecording, canSend, stopRecordingAndSend, onStopRecordingRef]);
 
     if (isRecording) {
+        const waveSeed = recordingTime % 9;
         return (
-            <View className="flex-row items-center gap-3 w-full">
-                <View className="flex-1 flex-row items-center gap-4 bg-red-500/15 border-2 border-red-500/30 rounded-xl px-5 py-3.5">
-                    <View className="flex-row items-center gap-3 flex-1">
-                        <View className="relative">
-                            <View className="w-4 h-4 bg-red-500 rounded-full" />
+            <View className="flex-row items-center gap-2 w-full">
+                <View className="flex-1 flex-row items-center gap-3 rounded-2xl px-3 py-2.5 border border-alpha/35 bg-alpha/10 dark:bg-alpha/15">
+                    <View className="flex-row items-center gap-3 flex-1 min-w-0">
+                        <View className="w-3 h-3 bg-red-500 rounded-full shadow-sm shadow-red-500/30" />
+
+                        <View className="min-w-0">
+                            <View className="flex-row items-baseline gap-2 flex-wrap">
+                                <Text className="text-lg font-extrabold text-black dark:text-white tabular-nums">
+                                    {formatTime(recordingTime)}
+                                </Text>
+                                <Text className="text-[11px] font-semibold text-black/50 dark:text-white/50 uppercase tracking-wide">
+                                    {canSend ? 'Release to send' : 'Hold to record'}
+                                </Text>
+                            </View>
+                            {error ? (
+                                <Text className="text-[11px] font-semibold text-red-600 mt-0.5" numberOfLines={1}>
+                                    {error}
+                                </Text>
+                            ) : null}
                         </View>
-                        
-                        <View className="flex-row items-baseline gap-2">
-                            <Text className="text-lg font-bold text-red-500 tabular-nums">
-                                {formatTime(recordingTime)}
-                            </Text>
-                            <Text className="text-xs font-medium text-red-500/70">
-                                {canSend ? 'Ready to send' : 'Recording...'}
-                            </Text>
-                        </View>
-                        
-                        <View className="flex-row items-center gap-1 flex-1 justify-center">
-                            {[...Array(5)].map((_, i) => (
+
+                        <View className="flex-row items-end gap-[2px] flex-1 justify-end h-9 overflow-hidden">
+                            {waveBars.map((bar) => (
                                 <View
-                                    key={i}
-                                    className="w-1 bg-red-500/60 rounded-full"
+                                    key={bar}
+                                    className="w-[3px] rounded-full bg-alpha/85"
                                     style={{
-                                        height: 20 + Math.sin(i * 0.8) * 15,
+                                        height: 6 + ((bar + waveSeed) % 8) * 3,
+                                        opacity: canSend ? 0.95 : 0.55,
                                     }}
                                 />
                             ))}
                         </View>
                     </View>
                 </View>
-                
+
                 <View className="flex-row items-center gap-2">
                     {canSend && (
                         <Pressable
                             onPress={stopRecordingAndSend}
-                            className="bg-yellow-500 px-4 py-2 rounded-lg"
+                            className="bg-alpha px-3 py-2.5 rounded-2xl min-w-[4.5rem] items-center"
                             disabled={isUploading}
                         >
                             {isUploading ? (
-                                <ActivityIndicator color="#000" />
+                                <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
                             ) : (
-                                <Text className="text-black font-semibold">Send</Text>
+                                <Text className="text-black font-extrabold text-sm">Send</Text>
                             )}
                         </Pressable>
                     )}
                     <Pressable
                         onPress={handleCancel}
-                        className="h-9 w-9 items-center justify-center border border-red-500/20 rounded-lg"
+                        className="h-10 w-10 items-center justify-center rounded-2xl border border-black/10 dark:border-white/15 bg-white dark:bg-zinc-900"
                         disabled={isUploading}
                     >
-                        <Ionicons name="close" size={16} color="#ef4444" />
+                        <Ionicons name="close" size={18} color="#ef4444" />
                     </Pressable>
                 </View>
             </View>
@@ -269,11 +277,11 @@ export default function VoiceRecorder({ onRecordingComplete, onCancel, disabled,
         <Pressable
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
-            className={`h-9 w-9 items-center justify-center rounded-full border border-gray-200 dark:border-gray-700 ${disabled ? 'opacity-50' : ''}`}
+            className={`h-10 w-10 items-center justify-center rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.04] dark:bg-white/[0.06] ${disabled ? 'opacity-50' : ''}`}
             disabled={disabled || isUploading}
         >
             {isUploading ? (
-                <ActivityIndicator color="#ffc801" />
+                <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
             ) : (
                 <Ionicons name="mic" size={20} color="#ffc801" />
             )}

@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import * as MediaLibrary from 'expo-media-library';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { Home as LogoIcon } from '@/components/logo';
 import API from '@/api';
 
@@ -37,6 +37,7 @@ export default function Onboarding() {
   const colorScheme = useColorScheme();
   const [index, setIndex] = useState(0);
   const scrollRef = useRef(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
     // Configure notifications handler (foreground behavior)
@@ -49,13 +50,40 @@ export default function Onboarding() {
     });
   }, []);
 
+  useEffect(() => {
+    const redirectIfLoggedIn = async () => {
+      try {
+        const token = await AsyncStorage.getItem('auth_token');
+        const tokenStr = typeof token === 'string' ? token.trim() : '';
+
+        const hasValidToken =
+          !!tokenStr && tokenStr !== 'false' && tokenStr !== 'null' && tokenStr !== 'undefined';
+
+        if (hasValidToken) {
+          // Logged in users should never see onboarding.
+          await AsyncStorage.setItem('onboarding_seen', '1');
+          router.replace('/loading');
+          return;
+        }
+      } catch (error) {
+        console.error('[ONBOARDING] Failed to check auth token:', error);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    redirectIfLoggedIn();
+  }, []);
+
   const requestPermissions = async () => {
     try {
       await Notifications.requestPermissionsAsync();
       if (Platform.OS !== 'web') {
         await MediaLibrary.requestPermissionsAsync();
       }
-    } catch {}
+    } catch (error) {
+      console.warn('[ONBOARDING] Permission request failed:', error);
+    }
   };
 
   const complete = async () => {
@@ -63,7 +91,12 @@ export default function Onboarding() {
     await AsyncStorage.setItem('onboarding_seen', '1');
     // If logged in go to loading to verify, otherwise to login
     const token = await AsyncStorage.getItem('auth_token');
-    if (token) router.replace('/loading'); else router.replace('/auth/login');
+    const tokenStr = typeof token === 'string' ? token.trim() : '';
+    const hasValidToken =
+      !!tokenStr && tokenStr !== 'false' && tokenStr !== 'null' && tokenStr !== 'undefined';
+
+    if (hasValidToken) router.replace('/loading');
+    else router.replace('/auth/login');
   };
 
   const next = () => {
@@ -72,6 +105,8 @@ export default function Onboarding() {
       setIndex((i) => i + 1);
     }
   };
+
+  if (isCheckingAuth) return null;
 
   return (
     <View className="flex-1 bg-white dark:bg-black">

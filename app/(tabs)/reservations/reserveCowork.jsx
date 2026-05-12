@@ -5,7 +5,6 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  ActivityIndicator,
   Alert,
   Modal
 } from 'react-native';
@@ -18,6 +17,7 @@ import { Colors } from '@/constants/Colors';
 import { format } from 'date-fns';
 import * as CalendarAPI from 'expo-calendar';
 import { Ionicons } from '@expo/vector-icons';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function NewCoworkReservation({ selectedDate: propSelectedDate, prefillTime, onClose }) {
   const { user, token } = useAppContext();
@@ -262,7 +262,7 @@ export default function NewCoworkReservation({ selectedDate: propSelectedDate, p
             }}
           >
             {submitting ? (
-              <ActivityIndicator color={Colors.dark} size="small" />
+              <Skeleton width={16} height={16} borderRadius={8} isDark={false} />
             ) : (
               <Text style={{ color: Colors.dark, fontWeight: '700', fontSize: 14 }}>
                 Submit
@@ -314,7 +314,7 @@ export default function NewCoworkReservation({ selectedDate: propSelectedDate, p
               </Text>
             </View>
             {loadingTables ? (
-              <ActivityIndicator color={Colors.alpha} size="large" />
+              <Skeleton width={26} height={26} borderRadius={13} isDark={false} />
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 4 }}>

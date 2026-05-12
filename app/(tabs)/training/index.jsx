@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, RefreshControl, Pressable, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Pressable, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppContext } from '@/context';
 import API from '@/api';
@@ -7,6 +7,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import AppLayout from '@/components/layout/AppLayout';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function Training() {
   const { token } = useAppContext();
@@ -52,11 +53,35 @@ export default function Training() {
   if (loading) {
     return (
       <AppLayout>
-        <View className="flex-1 items-center justify-center bg-light dark:bg-dark">
-          <ActivityIndicator size="large" color={Colors.alpha} />
-          <Text className="text-black/60 dark:text-white/60 mt-4 text-base">
-            Loading trainings...
-          </Text>
+        <View className="flex-1 bg-light dark:bg-dark" style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+          <Skeleton width={180} height={28} borderRadius={12} isDark={isDark} />
+          <View style={{ height: 10 }} />
+          <Skeleton width={260} height={14} borderRadius={10} isDark={isDark} />
+          <View style={{ height: 22 }} />
+
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <View
+              key={idx}
+              style={{
+                borderRadius: 20,
+                overflow: 'hidden',
+                marginBottom: 16,
+                borderWidth: 1,
+                borderColor: isDark ? Colors.dark_gray : Colors.dark_gray + '20',
+              }}
+            >
+              <Skeleton width="100%" height={180} borderRadius={0} isDark={isDark} />
+              <View style={{ padding: 16 }}>
+                <Skeleton width="85%" height={18} borderRadius={10} isDark={isDark} />
+                <View style={{ height: 10 }} />
+                <Skeleton width={120} height={18} borderRadius={999} isDark={isDark} />
+                <View style={{ height: 14 }} />
+                <Skeleton width="75%" height={12} borderRadius={10} isDark={isDark} />
+                <View style={{ height: 10 }} />
+                <Skeleton width="55%" height={12} borderRadius={10} isDark={isDark} />
+              </View>
+            </View>
+          ))}
         </View>
       </AppLayout>
     );

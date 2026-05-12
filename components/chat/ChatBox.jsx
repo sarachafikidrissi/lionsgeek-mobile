@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Alert, AppState, Linking } from 'react-native';
+import { View, Alert, AppState, Linking, KeyboardAvoidingView, Platform } from 'react-native';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useAppContext } from '@/context';
 import API from '@/api';
@@ -12,7 +12,7 @@ import TypingIndicator from './partials/TypingIndicator';
 import RecordingIndicator from './partials/RecordingIndicator';
 
 // Main ChatBox component - refactored b components so9or
-export default function ChatBox({ conversation, onClose, onBack, isExpanded, onExpand }) {
+export default function ChatBox({ conversation, onBack, isExpanded, onExpand, suppressMessageListLoadingSkeleton }) {
     const { user, token } = useAppContext();
     const currentUser = user;
     const [messages, setMessages] = useState(conversation.messages || []);
@@ -38,12 +38,14 @@ export default function ChatBox({ conversation, onClose, onBack, isExpanded, onE
     const recordingTimerRef = useRef(null);
     const pendingTempIdsRef = useRef(new Set());
     const typingTimeoutRef = useRef(null);
+    const shouldAutoScrollRef = useRef(true);
+    const nearBottomRef = useRef(true);
 
     // Poll for new messages
     useEffect(() => {
         fetchMessages();
-        const interval = setInterval(fetchMessages, 3000);
-        return () => clearInterval(interval);
+        //  fetchMessages();
+        // return () => clearInterval(interval);
     }, [conversation.id]);
 
     // Fetch messages - b3d ma y3tiw 3la conversation
@@ -51,11 +53,15 @@ export default function ChatBox({ conversation, onClose, onBack, isExpanded, onE
         setMessages(prev => {
             return prev.filter(m => m.pending && pendingTempIdsRef.current.has(m.tempId));
         });
+        shouldAutoScrollRef.current = true;
         fetchMessages();
     }, [conversation.id]);
 
     useEffect(() => {
-        scrollToBottom();
+        if (shouldAutoScrollRef.current) {
+            setTimeout(() => scrollToBottom(), 30);
+            shouldAutoScrollRef.current = false;
+        }
     }, [messages]);
 
     // Update recording time timer
@@ -92,6 +98,7 @@ export default function ChatBox({ conversation, onClose, onBack, isExpanded, onE
                     const stillPending = pendingMessages.filter(m => !existingIds.has(m.tempId));
                     return [...fetchedMessages, ...stillPending];
                 });
+                shouldAutoScrollRef.current = nearBottomRef.current;
 
                 // Mark messages as read when conversation is opened
                 const appState = AppState.currentState;
@@ -181,7 +188,7 @@ export default function ChatBox({ conversation, onClose, onBack, isExpanded, onE
         }
 
         setMessages(prev => [...prev, optimisticMessage]);
-        scrollToBottom();
+        shouldAutoScrollRef.current = true;
 
         const formMessageBody = messageBody;
         const formAttachment = attachment;
@@ -433,40 +440,55 @@ export default function ChatBox({ conversation, onClose, onBack, isExpanded, onE
         setIsPaused(false);
     };
 
+    const handleListScroll = (event) => {
+        const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+        const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+        const nearBottom = distanceFromBottom < 120;
+        nearBottomRef.current = nearBottom;
+    };
+
     return (
         <View className="bg-light dark:bg-dark flex-col flex-1 overflow-hidden relative">
-            {/* Main Chat Area */}
-            <View className={`flex-col flex-1 w-full ${previewAttachment ? 'opacity-0' : ''}`}>
-                <ChatHeader 
-                    conversation={conversation}
-                    onClose={onClose}
-                    onBack={onBack}
-                    onToolboxToggle={() => {}}
-                />
+            {/* Header stays fixed; only messages + composer avoid the keyboard (WhatsApp-style). */}
+            <ChatHeader conversation={conversation} onBack={onBack} />
 
-                {/* Messages List - Full width on mobile */}
-                <MessageList
-                    messages={messages}
-                    loading={loading}
-                    currentUser={currentUser}
-                    conversation={conversation}
-                    isPlayingAudio={isPlayingAudio}
-                    audioProgress={audioProgress}
-                    audioDuration={audioDuration}
-                    showMenuForMessage={showMenuForMessage}
-                    onPlayAudio={handlePlayAudio}
-                    onDeleteMessage={handleDeleteMessage}
-                    onMenuToggle={setShowMenuForMessage}
-                    onPreviewAttachment={handlePreviewAttachment}
-                    onDownloadAttachment={handleDownloadAttachment}
-                    formatMessageTime={formatMessageTime}
-                    formatSeenTime={formatSeenTime}
-                    messagesEndRef={messagesEndRef}
-                    showToolbox={false}
-                    previewAttachment={previewAttachment}
-                    typingUsers={typingUsers}
-                    recordingUsers={recordingUsers}
-                />
+            {/* iOS: padding lifts content. Android + adjustResize: `height` avoids stacking resize + bottom padding. */}
+            <KeyboardAvoidingView
+                style={{
+                    flex: 1,
+                    width: '100%',
+                    opacity: previewAttachment ? 0 : 1,
+                }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                enabled
+                keyboardVerticalOffset={0}
+            >
+                <View style={{ flex: 1, minHeight: 0 }}>
+                    <MessageList
+                        messages={messages}
+                        loading={loading}
+                        suppressInitialLoadingSkeleton={suppressMessageListLoadingSkeleton}
+                        currentUser={currentUser}
+                        conversation={conversation}
+                        isPlayingAudio={isPlayingAudio}
+                        audioProgress={audioProgress}
+                        audioDuration={audioDuration}
+                        showMenuForMessage={showMenuForMessage}
+                        onPlayAudio={handlePlayAudio}
+                        onDeleteMessage={handleDeleteMessage}
+                        onMenuToggle={setShowMenuForMessage}
+                        onPreviewAttachment={handlePreviewAttachment}
+                        onDownloadAttachment={handleDownloadAttachment}
+                        formatMessageTime={formatMessageTime}
+                        formatSeenTime={formatSeenTime}
+                        messagesEndRef={messagesEndRef}
+                        showToolbox={false}
+                        previewAttachment={previewAttachment}
+                        typingUsers={typingUsers}
+                        recordingUsers={recordingUsers}
+                        onScroll={handleListScroll}
+                    />
+                </View>
 
                 <MessageInput
                     newMessage={newMessage}
@@ -495,7 +517,7 @@ export default function ChatBox({ conversation, onClose, onBack, isExpanded, onE
                     onPause={pauseRecording}
                     onResume={resumeRecording}
                 />
-            </View>
+            </KeyboardAvoidingView>
 
             {/* Preview Panel - Full Width */}
             {previewAttachment && (

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
 import { useAppContext } from '@/context';
+import Skeleton from '@/components/ui/Skeleton';
 
 // Toolbox component dial attachments w posts
 export default function ChatToolbox({ conversationId, otherUserId, onPreviewAttachment, messages = [] }) {
@@ -97,7 +98,11 @@ export default function ChatToolbox({ conversationId, otherUserId, onPreviewAtta
                 {activeTab === 'attachments' ? (
                     loading ? (
                         <View className="items-center justify-center h-full">
-                            <ActivityIndicator size="large" color="#ffc801" />
+                            <View className="w-full flex-row flex-wrap gap-2">
+                                {Array.from({ length: 6 }).map((_, idx) => (
+                                    <Skeleton key={idx} width="48%" height={140} borderRadius={12} isDark={false} />
+                                ))}
+                            </View>
                         </View>
                     ) : attachments.length === 0 ? (
                         <View className="items-center justify-center h-full">

@@ -5,7 +5,6 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  ActivityIndicator,
   Image,
   FlatList
 } from 'react-native';
@@ -19,6 +18,7 @@ import { Colors } from '@/constants/Colors';
 import { format } from 'date-fns';
 import * as CalendarAPI from 'expo-calendar';
 import { Ionicons } from '@expo/vector-icons';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function NewReservation({ selectedDate: propSelectedDate, prefillTime, onClose, placeId: propPlaceId }) {
   const { user, token } = useAppContext();
@@ -464,7 +464,7 @@ export default function NewReservation({ selectedDate: propSelectedDate, prefill
                   </Text>
                 </View>
                 {loadingPlaces ? (
-                  <ActivityIndicator color={Colors.alpha} size="large" />
+                  <Skeleton width={26} height={26} borderRadius={13} isDark={false} />
                 ) : (
                   <FlatList
                     data={places}
@@ -773,7 +773,7 @@ export default function NewReservation({ selectedDate: propSelectedDate, prefill
                   Select Team Members
                 </Text>
               </View>
-              {loadingUsers && <ActivityIndicator color={Colors.alpha} size="large" />}
+              {loadingUsers && <Skeleton width={26} height={26} borderRadius={13} isDark={false} />}
               {!loadingUsers && users.map((user) => {
                 const hasCustomImage = user.image && !user.image.includes('pdp.png');
                 const initials = user.name
@@ -888,7 +888,7 @@ export default function NewReservation({ selectedDate: propSelectedDate, prefill
                   Select Equipment
                 </Text>
               </View>
-              {loadingEquipment && <ActivityIndicator color={Colors.alpha} size="large" />}
+              {loadingEquipment && <Skeleton width={26} height={26} borderRadius={13} isDark={false} />}
               {!loadingEquipment && equipment.map((item) => {
                 const isSelected = selectedEquipment.includes(item.id);
                 return (

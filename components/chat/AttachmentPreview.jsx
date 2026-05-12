@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, Image, ScrollView, Linking } from 'react-native';
+import { View, Text, Pressable, Image, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import API from '@/api';
 

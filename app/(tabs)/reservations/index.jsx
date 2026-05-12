@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, memo } from 'react';
-import { View, Text, ScrollView, RefreshControl, Pressable, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Pressable, StyleSheet, Image } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import * as CalendarAPI from 'expo-calendar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -9,6 +9,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import AppLayout from '@/components/layout/AppLayout';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
+import Skeleton from '@/components/ui/Skeleton';
 
 
 // Memoized Place Grid Card Component
@@ -366,11 +367,33 @@ export default function Reservations() {
   if (loading && allPlaces.length === 0) {
     return (
       <AppLayout>
-        <View className="flex-1 items-center justify-center bg-light dark:bg-dark">
-          <ActivityIndicator size="large" color={Colors.alpha} />
-          <Text className="text-black/60 dark:text-white/60 mt-4 text-base">
-            Loading reservations...
-          </Text>
+        <View className="flex-1 bg-light dark:bg-dark" style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+          <Skeleton width={220} height={28} borderRadius={12} isDark={isDark} />
+          <View style={{ height: 10 }} />
+          <Skeleton width={280} height={14} borderRadius={10} isDark={isDark} />
+          <View style={{ height: 22 }} />
+
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <View
+              key={idx}
+              style={{
+                borderRadius: 20,
+                overflow: 'hidden',
+                marginBottom: 16,
+                borderWidth: 1,
+                borderColor: isDark ? Colors.dark_gray : Colors.dark_gray + '20',
+              }}
+            >
+              <Skeleton width="100%" height={120} borderRadius={0} isDark={isDark} />
+              <View style={{ padding: 12 }}>
+                <Skeleton width={160} height={16} borderRadius={10} isDark={isDark} />
+                <View style={{ height: 10 }} />
+                <Skeleton width="90%" height={12} borderRadius={10} isDark={isDark} />
+                <View style={{ height: 10 }} />
+                <Skeleton width={130} height={24} borderRadius={12} isDark={isDark} />
+              </View>
+            </View>
+          ))}
         </View>
       </AppLayout>
     );
@@ -404,8 +427,29 @@ export default function Reservations() {
         {/* Places List */}
         {loadingPlaces ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.alpha} />
-            <Text style={styles.loadingText(isDark)}>Loading places...</Text>
+            <View style={{ width: '100%', paddingTop: 10 }}>
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <View
+                  key={idx}
+                  style={{
+                    borderRadius: 20,
+                    overflow: 'hidden',
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: isDark ? Colors.dark_gray : Colors.dark_gray + '20',
+                  }}
+                >
+                  <Skeleton width="100%" height={120} borderRadius={0} isDark={isDark} />
+                  <View style={{ padding: 12 }}>
+                    <Skeleton width={160} height={16} borderRadius={10} isDark={isDark} />
+                    <View style={{ height: 10 }} />
+                    <Skeleton width="90%" height={12} borderRadius={10} isDark={isDark} />
+                    <View style={{ height: 10 }} />
+                    <Skeleton width={130} height={24} borderRadius={12} isDark={isDark} />
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
         ) : (
           /* Show Places Grid */

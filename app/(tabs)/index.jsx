@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, RefreshControl, ActivityIndicator, Alert, TouchableOpacity, Image, Pressable } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { useAppContext } from '@/context';
 import StoryItem from '@/components/feed/StoryItem';
 import FeedItem from '@/components/feed/FeedItem';
@@ -8,7 +8,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import API from '@/api';
-import { router } from 'expo-router';
+import Skeleton from '@/components/ui/Skeleton';
 
 export default function HomeScreen() {
   const { user, token } = useAppContext();
@@ -17,7 +17,6 @@ export default function HomeScreen() {
   const [posts, setPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalHours: 0, streak: 0, rank: 0 });
 
   // Enhanced hardcoded posts
   const hardcodedPosts = [
@@ -50,8 +49,6 @@ export default function HomeScreen() {
       setPosts(hardcodedPosts);
       setLoading(false);
     }
-    // Simulate stats
-    setStats({ totalHours: 127, streak: 7, rank: 5 });
   }, [token]);
 
   // Helper function to get avatar URL - match profile.jsx and notifications.jsx approach
@@ -173,29 +170,33 @@ export default function HomeScreen() {
     }
 
     try {
-      const response = await API.post('mobile/posts/repost', {
-        post_id: post.id,
-      }, token);
+      const wasReposted = Boolean(post?.isReposted || post?.is_reposted_by_user || post?.reposted);
+      const endpoint = wasReposted ? 'mobile/posts/unrepost' : 'mobile/posts/repost';
+
+      const response = await API.post(endpoint, { post_id: post.id }, token);
 
       if (response?.data) {
+        const serverReposted = response?.data?.reposted;
+        const serverCount = response?.data?.reposts_count;
         setPosts(prevPosts =>
           prevPosts.map(p =>
             p.id === post.id
               ? {
                   ...p,
-                  isReposted: true,
-                  reposts: (p.reposts || 0) + 1,
-                  reposted: true,
-                  reposted_by: user?.name || 'You',
+                  isReposted: typeof serverReposted === 'boolean' ? serverReposted : !wasReposted,
+                  reposted: typeof serverReposted === 'boolean' ? serverReposted : !wasReposted,
+                  reposts: typeof serverCount === 'number'
+                    ? Math.max(0, serverCount)
+                    : Math.max(0, (p.reposts || 0) + (wasReposted ? -1 : 1)),
+                  reposted_by: !wasReposted ? (user?.name || 'You') : (p.reposted_by ?? null),
                 }
               : p
           )
         );
-        Alert.alert('Success', 'Post reposted!');
       }
     } catch (error) {
       console.error('[HOME] Error reposting:', error);
-      Alert.alert('Error', 'Failed to repost. Please try again.');
+      Alert.alert('Error', 'Failed to update repost. Please try again.');
     }
   };
 
@@ -211,76 +212,131 @@ export default function HomeScreen() {
 
   return (
     <AppLayout showNavbar={true}>
-      <ScrollView 
-        className="flex-1 bg-light dark:bg-dark"
+      <ScrollView
         showsVerticalScrollIndicator={false}
+        style={{ backgroundColor: isDark ? '#0f0f0f' : '#e9e5df' }}
         contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffc801" />
         }
       >
-        <View className="px-6">
-          {/* Stories Section */}
-          <View className="mb-6">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-base font-bold text-black dark:text-white">Stories</Text>
-              <Ionicons name="add-circle-outline" size={24} color="#ffc801" />
-            </View>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              className="-mx-6"
-              contentContainerStyle={{ paddingHorizontal: 24, paddingRight: 24 }}
-            >
-              <View className="mr-4">
-                <StoryItem user={user} isOwn={true} />
-              </View>
-              <View className="mr-4">
-                <StoryItem user={{ name: 'Hamza', avatar: 'https://via.placeholder.com/60', image: null }} />
-              </View>
-              <View className="mr-4">
-                <StoryItem user={{ name: 'Nabil', avatar: 'https://via.placeholder.com/60', image: null }} />
-              </View>
-              <View className="mr-4">
-                <StoryItem user={{ name: 'John', avatar: 'https://via.placeholder.com/60', image: null }} />
-              </View>
-            </ScrollView>
+        {/* Stories card */}
+        <View
+          style={{
+            backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+            marginBottom: 8,
+            paddingHorizontal: 16,
+            paddingTop: 12,
+            paddingBottom: 14,
+          }}
+        >
+          <View className="flex-row items-center justify-between mb-3">
+            <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 0.8, color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', textTransform: 'uppercase' }}>
+              Stories
+            </Text>
+            <Ionicons name="add-circle-outline" size={22} color="#ffc801" />
           </View>
-
-          {/* Create Post Section */}
-          <View className="mb-6">
-            <CreatePost onPostPress={() => {}} onPostCreated={handlePostCreated} />
-          </View>
-
-          {/* Feed Section */}
-          <View className="mb-4">
-
-            {loading ? (
-              <View className="py-16 items-center">
-                <ActivityIndicator size="large" color="#ffc801" />
-                <Text className="text-black/60 dark:text-white/60 mt-4">Loading feed...</Text>
-              </View>
-            ) : posts.length === 0 ? (
-              <View className="py-16 items-center bg-light/30 dark:bg-dark/30 rounded-2xl">
-                <Ionicons name="document-text-outline" size={48} color={isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'} />
-                <Text className="text-black/60 dark:text-white/60 text-center mt-4 px-4">
-                  No posts yet. Be the first to share something!
-                </Text>
-              </View>
-            ) : (
-              posts.map((item, index) => (
-                <View key={item.id} className={index !== posts.length - 1 ? "mb-5" : ""}>
-                  <FeedItem 
-                    item={{
-                      ...item,
-                      onRepost: handleRepost,
-                    }} 
-                  />
-                </View>
-              ))
-            )}
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 8 }}
+          >
+            <StoryItem user={user} isOwn={true} />
+            <StoryItem user={{ name: 'Hamza', avatar: 'https://via.placeholder.com/60', image: null }} />
+            <StoryItem user={{ name: 'Nabil', avatar: 'https://via.placeholder.com/60', image: null }} />
+            <StoryItem user={{ name: 'John', avatar: 'https://via.placeholder.com/60', image: null }} />
+          </ScrollView>
         </View>
+
+        {/* Create Post card */}
+        <View
+          style={{
+            backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+            marginBottom: 8,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+          }}
+        >
+          <CreatePost onPostPress={() => {}} onPostCreated={handlePostCreated} />
+        </View>
+
+        {/* Feed cards */}
+        {loading ? (
+          <View style={{ paddingTop: 10 }}>
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <View
+                key={idx}
+                style={{
+                  backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+                  marginBottom: 8,
+                  borderTopWidth: 0.5,
+                  borderBottomWidth: 0.5,
+                  borderColor: isDark ? '#2e2e2e' : '#ddd8d0',
+                  paddingBottom: 14,
+                }}
+              >
+                {/* Header skeleton */}
+                <View style={{ paddingHorizontal: 12, paddingTop: 14, paddingBottom: 10, flexDirection: 'row', alignItems: 'center' }}>
+                  <Skeleton width={42} height={42} borderRadius={21} isDark={isDark} />
+                  <View style={{ marginLeft: 10, flex: 1 }}>
+                    <Skeleton width={160} height={12} borderRadius={8} isDark={isDark} />
+                    <View style={{ height: 8 }} />
+                    <Skeleton width={90} height={10} borderRadius={8} isDark={isDark} />
+                  </View>
+                </View>
+
+                {/* Media skeleton */}
+                <Skeleton width="100%" height={360} borderRadius={0} isDark={isDark} />
+
+                {/* Action bar skeleton */}
+                <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      <Skeleton width={28} height={28} borderRadius={14} isDark={isDark} />
+                      <Skeleton width={28} height={28} borderRadius={14} isDark={isDark} />
+                      <Skeleton width={28} height={28} borderRadius={14} isDark={isDark} />
+                    </View>
+                    <Skeleton width={26} height={26} borderRadius={13} isDark={isDark} />
+                  </View>
+
+                  <View style={{ height: 10 }} />
+                  <Skeleton width={140} height={12} borderRadius={8} isDark={isDark} />
+                  <View style={{ height: 10 }} />
+                  <Skeleton width="92%" height={12} borderRadius={8} isDark={isDark} />
+                  <View style={{ height: 8 }} />
+                  <Skeleton width="70%" height={12} borderRadius={8} isDark={isDark} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : posts.length === 0 ? (
+          <View
+            style={{
+              backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+              marginHorizontal: 0,
+              paddingVertical: 48,
+              alignItems: 'center',
+            }}
+          >
+            <Ionicons name="document-text-outline" size={48} color={isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'} />
+            <Text className="text-black/60 dark:text-white/60 text-center mt-4 px-4">
+              No posts yet. Be the first to share something!
+            </Text>
+          </View>
+        ) : (
+          posts.map((item) => (
+            <FeedItem
+              key={item.id}
+              item={{
+                ...item,
+                onRepost: handleRepost,
+                onPostDeleted: (postId) => {
+                  setPosts(prev => prev.filter(p => p.id !== postId));
+                },
+              }}
+            />
+          ))
+        )}
       </ScrollView>
     </AppLayout>
   );

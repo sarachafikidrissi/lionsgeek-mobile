@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, RefreshControl } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,9 +7,17 @@ import AppLayout from '@/components/layout/AppLayout';
 import { router } from 'expo-router';
 import API from '@/api';
 import { formatDistanceToNow } from 'date-fns';
+import Skeleton from '@/components/ui/Skeleton';
+
+let Ably = null;
+try {
+  Ably = require('ably');
+} catch {
+  // Ably is optional until installed in this repo.
+}
 
 export default function NotificationsScreen() {
-  const { user, token } = useAppContext();
+  const { token } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [refreshing, setRefreshing] = useState(false);
@@ -20,6 +28,53 @@ export default function NotificationsScreen() {
     if (token) {
       fetchNotifications();
     }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (!Ably) return;
+
+    let ably = null;
+    let channel = null;
+    let closed = false;
+
+    const connect = async () => {
+      try {
+        const res = await API.getWithAuth('notifications/ably-token', token);
+        const ablyToken = res?.data?.token;
+        const channelName = res?.data?.channelName;
+        if (!ablyToken || !channelName) return;
+
+        ably = new Ably.Realtime({ token: ablyToken });
+        channel = ably.channels.get(channelName);
+
+        channel.subscribe('new_notification', (message) => {
+          const incoming = message?.data;
+          if (!incoming?.id) return;
+
+          setNotifications((prev) => {
+            if (prev.some((n) => n?.id === incoming.id)) return prev;
+            const formatted = formatNotificationForMobile(incoming);
+            return [formatted, ...prev];
+          });
+        });
+      } catch (_error) {
+        // If Ably token fails, notifications still work via polling.
+      }
+    };
+
+    connect();
+
+    return () => {
+      closed = true;
+      try {
+        if (channel) channel.unsubscribe();
+      } catch {}
+      try {
+        if (ably && !closed) ably.close();
+        if (ably) ably.close();
+      } catch {}
+    };
   }, [token]);
 
   // Map notification types to icons and colors
@@ -33,6 +88,7 @@ export default function NotificationsScreen() {
       'reservation': 'calendar',
       'appointment': 'calendar',
       'post_interaction': 'heart',
+      'post_report': 'flag',
       'follow': 'person-add',
       'project_status': 'trophy',
       'task_assignment': 'briefcase',
@@ -51,6 +107,7 @@ export default function NotificationsScreen() {
       'reservation': '#10b981',
       'appointment': '#10b981',
       'post_interaction': '#ef4444',
+      'post_report': '#ef4444',
       'follow': '#3b82f6',
       'project_status': '#ffc801',
       'task_assignment': '#f59e0b',
@@ -94,6 +151,9 @@ export default function NotificationsScreen() {
         break;
       case 'post_interaction':
         title = 'Post Interaction';
+        break;
+      case 'post_report':
+        title = 'Post reported';
         break;
       case 'follow':
         title = 'New Follower';
@@ -144,6 +204,7 @@ export default function NotificationsScreen() {
       icon,
       color,
       link: notif.link,
+      mobileLink: notif.mobile_link,
       // Store original notification data for mark as read
       notificationType: notif.type,
       notificationId: notif.id,
@@ -184,7 +245,7 @@ export default function NotificationsScreen() {
   };
 
   // Enhanced notifications with more types (fallback - not used anymore, kept for reference)
-  const fallbackNotifications = [
+  const _fallbackNotifications = [
     {
       id: 1,
       type: 'achievement',
@@ -250,6 +311,7 @@ export default function NotificationsScreen() {
       color: '#8b5cf6',
     },
   ];
+  void _fallbackNotifications;
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -279,6 +341,7 @@ export default function NotificationsScreen() {
         'reservation': 'reservation',
         'appointment': 'appointment',
         'post': 'post',
+        'post-report': 'post-report',
         'follow': 'follow',
         'project-status': 'project-status',
         'task-assignment': 'task-assignment',
@@ -352,21 +415,24 @@ export default function NotificationsScreen() {
     }
     
     // Navigate based on notification type and link
-    if (notification.link) {
+    const targetLink = notification.mobileLink || notification.link;
+    if (targetLink) {
       // Handle different link formats
-      if (notification.link.startsWith('/admin/')) {
+      if (targetLink.startsWith('/admin/')) {
         // Admin links - might not be accessible in mobile, just show notification
-        console.log('Admin link:', notification.link);
-      } else if (notification.link.startsWith('/students/')) {
+        console.log('Admin link:', targetLink);
+      } else if (targetLink.startsWith('/posts/')) {
+        router.push(targetLink);
+      } else if (targetLink.startsWith('/students/')) {
         // Student profile or project links
-        const parts = notification.link.split('/');
+        const parts = targetLink.split('/');
         if (parts.includes('project')) {
           router.push('/(tabs)/projects');
         }
-      } else if (notification.link.startsWith('/feed')) {
+      } else if (targetLink.startsWith('/feed')) {
         // Feed link
         router.push('/(tabs)/index');
-      } else if (notification.link.includes('reservations')) {
+      } else if (targetLink.includes('reservations')) {
         router.push('/(tabs)/reservations');
       } else if (notification.type === 'reservation' || notification.type === 'appointment') {
         router.push('/(tabs)/reservations');
@@ -381,6 +447,8 @@ export default function NotificationsScreen() {
         router.push('/(tabs)/projects');
       } else if (notification.type === 'post_interaction' || notification.type === 'follow') {
         router.push('/(tabs)/index');
+      } else if (notification.type === 'post_report' && notification?.post_id) {
+        router.push(`/posts/${notification.post_id}${notification.report_id ? `?reportId=${notification.report_id}` : ''}`);
       }
     }
   };
@@ -461,9 +529,32 @@ export default function NotificationsScreen() {
         >
           <View className="px-6 pt-4 pb-8">
             {loading ? (
-              <View className="py-16 items-center">
-                <ActivityIndicator size="large" color="#ffc801" />
-                <Text className="text-black/60 dark:text-white/60 mt-4">Loading notifications...</Text>
+              <View style={{ paddingTop: 10 }}>
+                {Array.from({ length: 8 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      marginBottom: 12,
+                      padding: 16,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                      <Skeleton width={56} height={56} borderRadius={28} isDark={isDark} />
+                      <View style={{ marginLeft: 12, flex: 1 }}>
+                        <Skeleton width={160} height={12} borderRadius={10} isDark={isDark} />
+                        <View style={{ height: 10 }} />
+                        <Skeleton width="92%" height={12} borderRadius={10} isDark={isDark} />
+                        <View style={{ height: 8 }} />
+                        <Skeleton width="70%" height={12} borderRadius={10} isDark={isDark} />
+                        <View style={{ height: 12 }} />
+                        <Skeleton width={90} height={10} borderRadius={10} isDark={isDark} />
+                      </View>
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : notifications.length === 0 ? (
               <View className="py-16 items-center">
@@ -472,7 +563,7 @@ export default function NotificationsScreen() {
                   No notifications yet
                 </Text>
                 <Text className="text-center text-black/40 dark:text-white/40 mt-2 text-sm">
-                  You're all caught up!
+                  You are all caught up!
                 </Text>
               </View>
             ) : (
