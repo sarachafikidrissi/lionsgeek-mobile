@@ -263,6 +263,147 @@ const getCallAblyToken = async (token) => {
     return response?.data;
 };
 
+// ---------------------------------------------------------------------------
+// Stories
+//   GET    /api/mobile/stories                  → { groups: [...] }
+//   POST   /api/mobile/stories  (multipart)     → { story }
+//   POST   /api/mobile/stories/{id}/view        → { ok }
+//   DELETE /api/mobile/stories/{id}             → { ok }
+// ---------------------------------------------------------------------------
+
+const listStories = async (token) => {
+    const response = await get('mobile/stories', token);
+    return response?.data;
+};
+
+const createStory = async ({ uri, type, durationMs, width, height, mimeType, audience, overlays }, token) => {
+    const form = new FormData();
+    const isVideo = type === 'video';
+    const fallbackName = isVideo ? `story_${Date.now()}.mp4` : `story_${Date.now()}.jpg`;
+    const fallbackMime = isVideo ? 'video/mp4' : 'image/jpeg';
+    form.append('media', {
+        uri,
+        name: fallbackName,
+        type: mimeType || fallbackMime,
+    });
+    form.append('media_type', isVideo ? 'video' : 'image');
+    if (durationMs) form.append('duration_ms', String(Math.round(durationMs)));
+    if (width)      form.append('width', String(Math.round(width)));
+    if (height)     form.append('height', String(Math.round(height)));
+    if (audience === 'close_friends' || audience === 'public') {
+        form.append('audience', audience);
+    }
+    if (Array.isArray(overlays) && overlays.length > 0) {
+        form.append('overlays', JSON.stringify(overlays));
+    }
+    const response = await post('mobile/stories', form, token);
+    return response?.data;
+};
+
+const viewStory = async (storyId, token) => {
+    const response = await post(`mobile/stories/${storyId}/view`, {}, token);
+    return response?.data;
+};
+
+const deleteStory = async (storyId, token) => {
+    const response = await remove(`mobile/stories/${storyId}`, token);
+    return response?.data;
+};
+
+const getStoryViewers = async (storyId, token) => {
+    const response = await get(`mobile/stories/${storyId}/viewers`, token);
+    return response?.data;
+};
+
+const reactToStory = async (storyId, emoji, token) => {
+    const response = await post(`mobile/stories/${storyId}/react`, { emoji }, token);
+    return response?.data;
+};
+
+const removeStoryReaction = async (storyId, token) => {
+    const response = await remove(`mobile/stories/${storyId}/react`, token);
+    return response?.data;
+};
+
+const replyToStory = async (storyId, message, token) => {
+    const response = await post(`mobile/stories/${storyId}/reply`, { message }, token);
+    return response?.data;
+};
+
+// ─── Highlights ───────────────────────────────────────────────────────────
+const listHighlights = async (userId, token) => {
+    const response = await get(`mobile/users/${userId}/highlights`, token);
+    return response?.data;
+};
+
+const getHighlight = async (highlightId, token) => {
+    const response = await get(`mobile/highlights/${highlightId}`, token);
+    return response?.data;
+};
+
+const createHighlight = async ({ title, storyId }, token) => {
+    const response = await post(
+        `mobile/highlights`,
+        { title, story_id: storyId },
+        token,
+    );
+    return response?.data;
+};
+
+const addStoryToHighlight = async (highlightId, storyId, token) => {
+    const response = await post(
+        `mobile/highlights/${highlightId}/stories`,
+        { story_id: storyId },
+        token,
+    );
+    return response?.data;
+};
+
+const removeStoryFromHighlight = async (highlightId, storyId, token) => {
+    const response = await remove(
+        `mobile/highlights/${highlightId}/stories/${storyId}`,
+        token,
+    );
+    return response?.data;
+};
+
+const deleteHighlight = async (highlightId, token) => {
+    const response = await remove(`mobile/highlights/${highlightId}`, token);
+    return response?.data;
+};
+
+// ─── Close friends ────────────────────────────────────────────────────────
+const listCloseFriends = async (token) => {
+    const response = await get(`mobile/close-friends`, token);
+    return response?.data;
+};
+
+const addCloseFriend = async (friendId, token) => {
+    const response = await post(`mobile/close-friends/${friendId}`, {}, token);
+    return response?.data;
+};
+
+const removeCloseFriend = async (friendId, token) => {
+    const response = await remove(`mobile/close-friends/${friendId}`, token);
+    return response?.data;
+};
+
+// ─── Generic user search (used for @mentions in stories) ──────────────────
+const searchUsers = async (query, token) => {
+    const q = encodeURIComponent(String(query || '').trim());
+    const response = await get(`search?type=students&q=${q}`, token);
+    return response?.data;
+};
+
+// ─── Music search (used for the story music sticker) ──────────────────────
+// Returns: { source: 'spotify+itunes'|'itunes', items: [{ id, title, artist,
+// album, cover_url, preview_url, duration_ms, explicit, source }] }
+const searchMusic = async (query, token, { limit = 20 } = {}) => {
+    const q = encodeURIComponent(String(query || '').trim());
+    const response = await get(`mobile/music/search?q=${q}&limit=${limit}`, token);
+    return response?.data;
+};
+
 export default {
     get,
     put,
@@ -279,4 +420,23 @@ export default {
     endCall,
     getCall,
     getCallAblyToken,
+    listStories,
+    createStory,
+    viewStory,
+    deleteStory,
+    getStoryViewers,
+    reactToStory,
+    removeStoryReaction,
+    replyToStory,
+    listHighlights,
+    getHighlight,
+    createHighlight,
+    addStoryToHighlight,
+    removeStoryFromHighlight,
+    deleteHighlight,
+    listCloseFriends,
+    addCloseFriend,
+    removeCloseFriend,
+    searchUsers,
+    searchMusic,
 };

@@ -70,6 +70,41 @@ function RootLayoutNav() {
       <Stack.Screen name="chat" options={{ headerShown: false }} />
       <Stack.Screen name="posts/edit/[id]" options={{ headerShown: false }} />
       <Stack.Screen
+        name="stories/create"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="stories/viewer"
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'fade',
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="stories/highlight/[id]"
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'fade',
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="settings/close-friends"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
         name="call"
         options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
       />
