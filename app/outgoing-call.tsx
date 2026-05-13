@@ -10,19 +10,35 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallContext } from "@/context/CallContext";
+import { useCallRinger } from "@/hooks/useCallRinger";
 import API from "@/api";
 
 export default function OutgoingCallScreen() {
   const router = useRouter();
-  const { pendingCallAsCaller, cancelPendingCall } = useCallContext();
+  const { pendingCallAsCaller, activeCall, cancelPendingCall } = useCallContext();
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Redirect when no longer pending (call accepted → we're on /call; call rejected or cancelled → go to main app)
+  // Soft dial-tone + light vibration while we wait for the callee to answer.
+  // Stops automatically once activeCall is set or pending is cleared.
+  useCallRinger({
+    enabled: !!pendingCallAsCaller && !activeCall,
+    mode: 'outgoing',
+  });
+
+  // Redirect when no longer pending.
+  // - Call accepted: CallContext set activeCall and pushed /call itself, so
+  //   we MUST NOT also navigate here (would race with /call and could bounce
+  //   the user back to /(tabs)).
+  // - Call rejected or cancelled: there will be no activeCall, so we send
+  //   the user back to the main app.
+  // Slight delay to absorb iOS state-vs-navigation race conditions.
   useEffect(() => {
-    if (!pendingCallAsCaller) {
+    if (pendingCallAsCaller || activeCall) return;
+    const timer = setTimeout(() => {
       router.replace("/(tabs)");
-    }
-  }, [pendingCallAsCaller, router]);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [pendingCallAsCaller, activeCall, router]);
 
   // Ringing pulse animation
   useEffect(() => {
@@ -90,7 +106,12 @@ export default function OutgoingCallScreen() {
         activeOpacity={0.8}
       >
         <View className="w-20 h-20 rounded-full bg-red-500 items-center justify-center">
-          <Ionicons name="call" size={36} color="#fff" />
+          <Ionicons
+            name="call"
+            size={36}
+            color="#fff"
+            style={{ transform: [{ rotate: '135deg' }] }}
+          />
         </View>
         <Text className="text-white mt-2 font-medium">Cancel</Text>
       </TouchableOpacity>

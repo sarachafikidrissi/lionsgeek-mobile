@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Image, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, Image, ActivityIndicator, Animated, Easing } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallContext } from "@/context/CallContext";
 import { useAppContext } from "@/context";
+import { useCallRinger } from "@/hooks/useCallRinger";
+import { isCallKeepAvailable } from "@/services/callKeep";
 import API from "@/api";
 
 export default function IncomingCallScreen() {
   const router = useRouter();
   const { callId: paramCallId } = useLocalSearchParams<{ callId?: string }>();
   const { user, token } = useAppContext();
-  const { incomingCall, accept, reject, clearIncomingCall, setActiveCall } = useCallContext();
+  const { incomingCall, activeCall, accept, reject, clearIncomingCall, setActiveCall } = useCallContext();
   const [fetchedCall, setFetchedCall] = useState<{
     callId: number;
     channel_name: string;
@@ -40,10 +42,16 @@ export default function IncomingCallScreen() {
   }, [paramCallId, token, incomingCall, fetchedCall]);
 
   useEffect(() => {
-    if (!incomingCall && !fetchedCall && !paramCallId) {
+    // Do NOT redirect away while an activeCall exists – accept() has just
+    // promoted incomingCall to activeCall and is about to push /call.
+    // We also delay slightly because on iOS the state update may not yet
+    // be visible through context on the first effect run.
+    if (incomingCall || fetchedCall || paramCallId || activeCall) return;
+    const timer = setTimeout(() => {
       router.replace("/(tabs)");
-    }
-  }, [incomingCall, fetchedCall, paramCallId]);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [incomingCall, fetchedCall, paramCallId, activeCall, router]);
 
   const displayCall = incomingCall || (fetchedCall ? {
     callId: fetchedCall.callId,
@@ -52,9 +60,43 @@ export default function IncomingCallScreen() {
     caller_token: null,
   } : null);
 
+  // When the CallKeep native module is available (dev build), CallKit /
+  // ConnectionService plays the system ringtone so we keep the JS ringer
+  // silent to avoid double-ringing. In Expo Go (no native module), we fall
+  // back to the JS ringer so the user still hears something.
+  const callKeepReady = isCallKeepAvailable();
+  useCallRinger({
+    enabled: !callKeepReady && !!displayCall && !activeCall,
+    mode: 'incoming',
+  });
+
+  // Pulse animation behind the avatar to add a visual "ring" feel.
+  const pulseAnim = React.useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!displayCall) return undefined;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1100,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [displayCall, pulseAnim]);
+
   const handleAccept = async () => {
     try {
       if (incomingCall) {
+        // accept() in CallContext already navigates to /call on success.
         await accept();
       } else if (fetchedCall && token) {
         const data = await API.acceptCall(fetchedCall.callId, token);
@@ -64,9 +106,9 @@ export default function IncomingCallScreen() {
             channelName: data.channel_name,
             token: data.token,
           });
+          router.replace("/call");
         }
       }
-      router.replace("/call");
     } catch (e) {
       console.error("Accept call error:", e);
     }
@@ -100,17 +142,43 @@ export default function IncomingCallScreen() {
   return (
     <View className="flex-1 bg-dark justify-center items-center px-8">
       <Text className="text-white/70 text-lg mb-2">Incoming voice call</Text>
-      {avatarUri ? (
-        <Image
-          source={{ uri: avatarUri }}
-          className="w-28 h-28 rounded-full mb-6 bg-white/20"
-          resizeMode="cover"
+      <View style={{ width: 200, height: 200, marginBottom: 24, alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: 200,
+            height: 200,
+            borderRadius: 100,
+            backgroundColor: 'rgba(34,197,94,0.18)',
+            opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }),
+            transform: [{ scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.6] }) }],
+          }}
         />
-      ) : (
-        <View className="w-28 h-28 rounded-full mb-6 bg-white/20 items-center justify-center">
-          <Ionicons name="person" size={56} color="rgba(255,255,255,0.6)" />
-        </View>
-      )}
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: 160,
+            height: 160,
+            borderRadius: 80,
+            backgroundColor: 'rgba(34,197,94,0.25)',
+            opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] }),
+            transform: [{ scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.4] }) }],
+          }}
+        />
+        {avatarUri ? (
+          <Image
+            source={{ uri: avatarUri }}
+            className="w-28 h-28 rounded-full bg-white/20"
+            resizeMode="cover"
+          />
+        ) : (
+          <View className="w-28 h-28 rounded-full bg-white/20 items-center justify-center">
+            <Ionicons name="person" size={56} color="rgba(255,255,255,0.6)" />
+          </View>
+        )}
+      </View>
       <Text className="text-white text-2xl font-bold mb-12">
         {caller.name || "Unknown"}
       </Text>
@@ -122,7 +190,12 @@ export default function IncomingCallScreen() {
           activeOpacity={0.8}
         >
           <View className="w-20 h-20 rounded-full bg-red-500 items-center justify-center">
-            <Ionicons name="call-reject" size={36} color="#fff" />
+            <Ionicons
+              name="call"
+              size={36}
+              color="#fff"
+              style={{ transform: [{ rotate: '135deg' }] }}
+            />
           </View>
           <Text className="text-white mt-2 font-medium">Reject</Text>
         </TouchableOpacity>

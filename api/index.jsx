@@ -218,5 +218,65 @@ const postWithAuth = async (endpoint, data, token) => {
     return post(endpoint, data, token);
 };
 
+// ---------------------------------------------------------------------------
+// Voice call helpers
+// Backend routes (see routes/api.php on the Laravel side). All call routes
+// live inside the `auth:sanctum` + `prefix('mobile')` group, so the real
+// URLs are /api/mobile/calls/... and /api/mobile/call/ably-token.
+//   GET    /api/mobile/call/ably-token
+//   POST   /api/mobile/calls/initiate          { callee_id }
+//   GET    /api/mobile/calls/{id}
+//   POST   /api/mobile/calls/{id}/accept
+//   POST   /api/mobile/calls/{id}/reject
+//   POST   /api/mobile/calls/{id}/end
+// All return JSON. These helpers unwrap response.data so callers can
+// just `await API.initiateCall(...)` and use the result directly.
+// ---------------------------------------------------------------------------
 
-export default { get, put, post, remove, getWithAuth, postWithAuth, APP_URL, IMAGE_URL, VIDEO_URL };
+const initiateCall = async (calleeId, token) => {
+    const response = await post('mobile/calls/initiate', { callee_id: calleeId }, token);
+    return response?.data;
+};
+
+const acceptCall = async (callId, token) => {
+    const response = await post(`mobile/calls/${callId}/accept`, {}, token);
+    return response?.data;
+};
+
+const rejectCall = async (callId, token) => {
+    const response = await post(`mobile/calls/${callId}/reject`, {}, token);
+    return response?.data;
+};
+
+const endCall = async (callId, token) => {
+    const response = await post(`mobile/calls/${callId}/end`, {}, token);
+    return response?.data;
+};
+
+const getCall = async (callId, token) => {
+    const response = await get(`mobile/calls/${callId}`, token);
+    return response?.data;
+};
+
+const getCallAblyToken = async (token) => {
+    const response = await get('mobile/call/ably-token', token);
+    return response?.data;
+};
+
+export default {
+    get,
+    put,
+    post,
+    remove,
+    getWithAuth,
+    postWithAuth,
+    APP_URL,
+    IMAGE_URL,
+    VIDEO_URL,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    getCall,
+    getCallAblyToken,
+};

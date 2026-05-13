@@ -10,7 +10,9 @@ import "../index.css";
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AppProvider } from '@/context';
+import { CallProvider } from '@/context/CallContext';
 import { setupNotificationListeners, removeNotificationListeners } from '@/services/pushNotifications';
+import { setupCallKeep } from '@/services/callKeep';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/Colors';
 import { Home as LogoIcon } from '@/components/logo';
@@ -29,6 +31,11 @@ function RootLayoutNav() {
     if (Constants.appOwnership === 'expo') {
       return;
     }
+
+    // Initialise CallKeep (CallKit on iOS / ConnectionService on Android) so
+    // that incoming calls can ring the phone like a real call, even from a
+    // killed app state.
+    setupCallKeep().catch(() => {});
 
     // Setup notification listeners when app mounts
     setupNotificationListeners()
@@ -62,6 +69,18 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="chat" options={{ headerShown: false }} />
       <Stack.Screen name="posts/edit/[id]" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="call"
+        options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
+      />
+      <Stack.Screen
+        name="incoming-call"
+        options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
+      />
+      <Stack.Screen
+        name="outgoing-call"
+        options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
+      />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
@@ -94,10 +113,12 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppProvider>
-        <ThemeProvider value={colorScheme == 'dark' ? DarkTheme : DefaultTheme}>
-          <RootLayoutNav />
-          <StatusBar style={colorScheme == 'dark' ? 'light' : 'dark'} />
-        </ThemeProvider>
+        <CallProvider>
+          <ThemeProvider value={colorScheme == 'dark' ? DarkTheme : DefaultTheme}>
+            <RootLayoutNav />
+            <StatusBar style={colorScheme == 'dark' ? 'light' : 'dark'} />
+          </ThemeProvider>
+        </CallProvider>
       </AppProvider>
     </GestureHandlerRootView>
   );

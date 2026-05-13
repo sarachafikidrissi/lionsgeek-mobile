@@ -13,7 +13,13 @@
       "bundleIdentifier": "com.lionsgeek.lionsgeek-mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "This app needs access to your camera to scan QR codes for attendance."
+        "NSCameraUsageDescription": "This app needs access to your camera to scan QR codes for attendance.",
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice calls.",
+        "UIBackgroundModes": [
+          "voip",
+          "audio",
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -26,7 +32,20 @@
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
+        "android.permission.MANAGE_OWN_CALLS",
+        "android.permission.BIND_TELECOM_CONNECTION_SERVICE",
+        "android.permission.READ_PHONE_STATE",
+        "android.permission.CALL_PHONE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.USE_FULL_SCREEN_INTENT"
       ],
       "package": "com.lionsgeek_pro.lionsgeek"
     },
@@ -60,6 +79,12 @@
         "expo-camera",
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan QR codes for attendance."
+        }
+      ],
+      [
+        "@config-plugins/react-native-callkeep",
+        {
+          "appName": "LionsGeek"
         }
       ]
     ],
