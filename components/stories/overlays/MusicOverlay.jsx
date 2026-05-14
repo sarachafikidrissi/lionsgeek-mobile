@@ -34,6 +34,8 @@ export default function MusicOverlay({ overlay, containerSize, animated = true }
   const rotation = overlay.rotation ?? 0;
   const display = overlay.display || 'pill';
 
+  if (display === 'none') return null;
+
   return (
     <View
       pointerEvents="none"

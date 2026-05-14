@@ -333,7 +333,7 @@ export default function HighlightViewerScreen() {
 
               <View style={{ flex: 1 }} />
 
-              {currentStory.media_type === 'video' ? (
+              {currentStory.media_type === 'video' || !!musicOverlay ? (
                 <Pressable
                   onPress={() => setMuted((m) => !m)}
                   hitSlop={10}
@@ -353,6 +353,26 @@ export default function HighlightViewerScreen() {
                 <Ionicons name="close" size={20} color="#fff" />
               </Pressable>
             </View>
+
+            {musicOverlay?.display === 'none' && (musicOverlay.title || musicOverlay.artist) ? (
+              <View
+                style={{
+                  marginTop: 8,
+                  paddingHorizontal: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <Ionicons name="musical-notes" size={14} color="rgba(255,255,255,0.65)" />
+                <Text
+                  numberOfLines={1}
+                  style={{ flex: 1, color: 'rgba(255,255,255,0.75)', fontSize: 12.5, fontWeight: '700' }}
+                >
+                  {[musicOverlay.title, musicOverlay.artist].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </Animated.View>
       </GestureDetector>

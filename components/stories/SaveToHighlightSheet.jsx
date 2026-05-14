@@ -24,14 +24,14 @@ import { useAppContext } from '@/context';
 import API from '@/api';
 
 const { height: WINDOW_H } = Dimensions.get('window');
-const SHEET_H = Math.round(WINDOW_H * 0.6);
+const SHEET_H = Math.round(WINDOW_H * 0.52);
 
 /**
  * Bottom sheet that lets a user add a story to a highlight.
  *
  * Two modes:
- *   1) Pick an existing highlight (tile grid)
- *   2) Create new (tap "+ New" → enter title)
+ *   1) Pick an existing highlight (horizontal row — same look as profile highlights)
+ *   2) Create new (tap "New" → enter title)
  *
  * Props:
  *   visible    – open/close trigger
@@ -183,18 +183,43 @@ export default function SaveToHighlightSheet({ visible, storyId, ownerId, onClos
                   <ActivityIndicator color="#fff" />
                 </View>
               ) : (
-                <ScrollView
-                  contentContainerStyle={{ paddingVertical: 14, paddingHorizontal: 14, paddingBottom: Platform.OS === 'ios' ? 34 : 22 }}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
-                    {/* "New highlight" tile */}
+                <View style={{ flex: 1, paddingBottom: Platform.OS === 'ios' ? 28 : 18 }}>
+                  <View style={{ borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+                    <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 16,
+                      gap: 14,
+                      alignItems: 'flex-start',
+                    }}
+                  >
                     <Pressable
                       onPress={() => setMode('create')}
-                      style={({ pressed }) => [tileStyle, { opacity: pressed ? 0.7 : 1, backgroundColor: 'rgba(255,255,255,0.08)' }]}
+                      disabled={saving}
+                      style={({ pressed }) => [highlightTileWrap, { opacity: pressed ? 0.7 : 1 }]}
                     >
-                      <Ionicons name="add" size={32} color="#ffc801" />
-                      <Text style={{ color: '#fff', fontWeight: '700', marginTop: 8 }} numberOfLines={1}>
+                      <View style={[highlightCircle, {
+                        borderColor: 'rgba(255,255,255,0.25)',
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }]}
+                      >
+                        <Ionicons name="add" size={28} color="#fff" />
+                      </View>
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          marginTop: 6,
+                          fontSize: 11,
+                          color: '#fff',
+                          textAlign: 'center',
+                          maxWidth: 64,
+                          fontWeight: '600',
+                        }}
+                      >
                         New
                       </Text>
                     </Pressable>
@@ -204,41 +229,71 @@ export default function SaveToHighlightSheet({ visible, storyId, ownerId, onClos
                         key={h.id}
                         onPress={() => handlePickExisting(h)}
                         disabled={saving}
-                        style={({ pressed }) => [tileStyle, { opacity: pressed || saving ? 0.65 : 1 }]}
+                        style={({ pressed }) => [highlightTileWrap, { opacity: pressed || saving ? 0.65 : 1 }]}
                       >
-                        {h.cover_url ? (
-                          <Image source={{ uri: h.cover_url }} style={{ position: 'absolute', inset: 0 }} />
-                        ) : (
-                          <View style={{
-                            position: 'absolute', inset: 0,
-                            backgroundColor: 'rgba(255,255,255,0.06)',
-                            alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <Ionicons name="albums-outline" size={28} color="rgba(255,255,255,0.4)" />
-                          </View>
-                        )}
-                        <View style={{
-                          position: 'absolute', left: 0, right: 0, bottom: 0,
-                          paddingVertical: 6, paddingHorizontal: 8,
-                          backgroundColor: 'rgba(0,0,0,0.55)',
-                        }}>
-                          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }} numberOfLines={1}>
-                            {h.title}
-                          </Text>
-                          <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10 }}>
-                            {h.stories_count} {h.stories_count === 1 ? 'item' : 'items'}
-                          </Text>
+                        <View style={[highlightCircle, {
+                          borderColor: 'rgba(255,255,255,0.3)',
+                          overflow: 'hidden',
+                        }]}
+                        >
+                          {h.cover_url ? (
+                            <Image source={{ uri: h.cover_url }} style={{ width: '100%', height: '100%' }} />
+                          ) : (
+                            <View style={{
+                              width: '100%',
+                              height: '100%',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: 'rgba(255,255,255,0.06)',
+                            }}
+                            >
+                              <Ionicons name="albums-outline" size={22} color="rgba(255,255,255,0.5)" />
+                            </View>
+                          )}
                         </View>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            marginTop: 6,
+                            fontSize: 11,
+                            color: '#fff',
+                            textAlign: 'center',
+                            maxWidth: 64,
+                            fontWeight: '600',
+                          }}
+                        >
+                          {h.title}
+                        </Text>
                       </Pressable>
                     ))}
+                  </ScrollView>
                   </View>
 
                   {highlights.length === 0 && !loading ? (
-                    <Text style={{ color: 'rgba(255,255,255,0.55)', textAlign: 'center', marginTop: 24 }}>
-                      No highlights yet. Tap "New" to create your first one.
+                    <Text style={{
+                      color: 'rgba(255,255,255,0.5)',
+                      textAlign: 'center',
+                      paddingHorizontal: 24,
+                      marginTop: 4,
+                      fontSize: 13,
+                      lineHeight: 18,
+                    }}
+                    >
+                      No highlights yet. Tap New to create one with this story.
                     </Text>
-                  ) : null}
-                </ScrollView>
+                  ) : (
+                    <Text style={{
+                      color: 'rgba(255,255,255,0.45)',
+                      textAlign: 'center',
+                      paddingHorizontal: 24,
+                      marginTop: 6,
+                      fontSize: 12,
+                    }}
+                    >
+                      Tap a highlight to add this story
+                    </Text>
+                  )}
+                </View>
               )
             ) : (
               <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 22, paddingBottom: 22 }}>
@@ -316,12 +371,15 @@ export default function SaveToHighlightSheet({ visible, storyId, ownerId, onClos
   );
 }
 
-const tileStyle = {
-  width: 100,
-  height: 130,
-  borderRadius: 12,
-  overflow: 'hidden',
+/** Matches `HighlightsRow` profile highlight circles (64px ring + label). */
+const highlightTileWrap = {
+  width: 64,
   alignItems: 'center',
-  justifyContent: 'center',
-  position: 'relative',
+};
+
+const highlightCircle = {
+  width: 64,
+  height: 64,
+  borderRadius: 32,
+  borderWidth: 1.5,
 };

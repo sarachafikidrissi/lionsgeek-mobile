@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Image } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, Image } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -8,6 +8,28 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+
+/** Must match the trash pill `bottom` offset in this file (px from canvas bottom). */
+const TRASH_FROM_BOTTOM = 120;
+/** Approximate pill height including padding (px). */
+const TRASH_PILL_HEIGHT = 54;
+/** Extra hit slop so delete triggers when the sticker overlaps the pill area. */
+const TRASH_HIT_PAD = 32;
+
+function pointInTrashZone(cx, cy, w, h) {
+  if (!w || !h) return false;
+  const trashBottom = h - TRASH_FROM_BOTTOM;
+  const trashTop = trashBottom - TRASH_PILL_HEIGHT;
+  const pillW = Math.min(300, w - 24);
+  const left = (w - pillW) / 2 - TRASH_HIT_PAD;
+  const right = (w + pillW) / 2 + TRASH_HIT_PAD;
+  return (
+    cx >= left &&
+    cx <= right &&
+    cy >= trashTop - TRASH_HIT_PAD &&
+    cy <= trashBottom + TRASH_HIT_PAD
+  );
+}
 
 /**
  * Editable overlay layer used inside the story editor.
@@ -20,6 +42,7 @@ import { Ionicons } from '@expo/vector-icons';
  *   - Double tap on text/mention → re-open the editor for it
  *
  * On release we commit { x, y, scale, rotation } back to the parent.
+ * Drag into the bottom trash zone (release there) deletes the overlay.
  *
  * Drawings are NOT draggable (they're full-canvas strokes), so we skip
  * them here — the parent doesn't pass them in.
@@ -37,6 +60,7 @@ export default function EditableOverlayLayer({
 }) {
   if (!containerSize || containerSize.width <= 0) return null;
 
+  const [trashZoneLit, setTrashZoneLit] = useState(false);
   const backdropTap = Gesture.Tap().onEnd(() => runOnJS(onDeselect)());
 
   return (
@@ -58,9 +82,47 @@ export default function EditableOverlayLayer({
             onDelete={onDelete}
             onEditText={onEditText}
             onEditMention={onEditMention}
+            onTrashZoneChange={setTrashZoneLit}
           />
         );
       })}
+
+      {trashZoneLit ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: TRASH_FROM_BOTTOM,
+            alignItems: 'center',
+          }}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              paddingHorizontal: 26,
+              paddingVertical: 15,
+              borderRadius: 999,
+              backgroundColor: 'rgba(180, 25, 25, 0.96)',
+              borderWidth: 2.5,
+              borderColor: '#ffc801',
+              shadowColor: '#000',
+              shadowOpacity: 0.5,
+              shadowRadius: 14,
+              shadowOffset: { width: 0, height: 5 },
+              elevation: 14,
+            }}
+          >
+            <Ionicons name="trash" size={24} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 15, letterSpacing: 0.2 }}>
+              Release to delete
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -68,6 +130,7 @@ export default function EditableOverlayLayer({
 function DraggableOverlay({
   overlay, containerSize, isSelected,
   onSelect, onUpdate, onDelete, onEditText, onEditMention,
+  onTrashZoneChange,
 }) {
   const baseX = (overlay.x ?? 0.5) * containerSize.width;
   const baseY = (overlay.y ?? 0.5) * containerSize.height;
@@ -92,17 +155,26 @@ function DraggableOverlay({
 
   /** All math runs on JS — avoids worklet crashes from reading React state. */
   const commitPan = useCallback((translationX, translationY) => {
+    onTrashZoneChange?.(false);
     const { width: w, height: h } = sizeRef.current || {};
     const o = overlayRef.current;
     if (!w || !h || !o?.id) return;
     const bx = (o.x ?? 0.5) * w;
     const by = (o.y ?? 0.5) * h;
+    const cx = bx + translationX;
+    const cy = by + translationY;
+    if (pointInTrashZone(cx, cy, w, h)) {
+      onDelete(o.id);
+      offsetX.value = 0;
+      offsetY.value = 0;
+      return;
+    }
     const nx = clamp((bx + translationX) / w, 0.02, 0.98);
     const ny = clamp((by + translationY) / h, 0.02, 0.98);
     onUpdate(o.id, { x: nx, y: ny });
     offsetX.value = 0;
     offsetY.value = 0;
-  }, [onUpdate, offsetX, offsetY]);
+  }, [onUpdate, onDelete, offsetX, offsetY, onTrashZoneChange]);
 
   const commitPinch = useCallback((scale) => {
     const o = overlayRef.current;
@@ -127,6 +199,22 @@ function DraggableOverlay({
     onSelect(overlayRef.current?.id);
   }, [onSelect]);
 
+  const reportTrashHint = useCallback((translationX, translationY) => {
+    const h = sizeRef.current?.height || 1;
+    const w = sizeRef.current?.width || 1;
+    const o = overlayRef.current;
+    if (!h || !o) return;
+    const bx = (o.x ?? 0.5) * w;
+    const by = (o.y ?? 0.5) * h;
+    const cx = bx + translationX;
+    const cy = by + translationY;
+    onTrashZoneChange?.(pointInTrashZone(cx, cy, w, h));
+  }, [onTrashZoneChange]);
+
+  const clearTrashOnly = useCallback(() => {
+    onTrashZoneChange?.(false);
+  }, [onTrashZoneChange]);
+
   const doDoubleTap = useCallback(() => {
     const o = overlayRef.current;
     if (!o) return;
@@ -143,6 +231,7 @@ function DraggableOverlay({
     .onUpdate((e) => {
       offsetX.value = e.translationX;
       offsetY.value = e.translationY;
+      runOnJS(reportTrashHint)(e.translationX, e.translationY);
     })
     .onEnd((e) => {
       runOnJS(commitPan)(e.translationX, e.translationY);
@@ -152,6 +241,7 @@ function DraggableOverlay({
   const pinchGesture = Gesture.Pinch()
     .onBegin(() => {
       runOnJS(selectById)();
+      runOnJS(clearTrashOnly)();
     })
     .onUpdate((e) => {
       scaleFactor.value = e.scale;
@@ -164,6 +254,7 @@ function DraggableOverlay({
   const rotationGesture = Gesture.Rotation()
     .onBegin(() => {
       runOnJS(selectById)();
+      runOnJS(clearTrashOnly)();
     })
     .onUpdate((e) => {
       rotationDelta.value = (e.rotation * 180) / Math.PI;
@@ -219,105 +310,6 @@ function DraggableOverlay({
             <StickerOverlayEditorView overlay={overlay} isSelected={isSelected} />
           )}
         </View>
-
-        {isSelected ? (
-          <>
-            <Pressable
-              onPress={() => onDelete(overlay.id)}
-              hitSlop={12}
-              style={{
-                position: 'absolute',
-                top: -26,
-                right: -26,
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: 'rgba(239,68,68,0.98)',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 10,
-                borderWidth: 2,
-                borderColor: 'rgba(255,255,255,0.95)',
-                shadowColor: '#000',
-                shadowOpacity: 0.45,
-                shadowRadius: 6,
-                elevation: 8,
-              }}
-            >
-              <Ionicons name="close" size={18} color="#fff" />
-            </Pressable>
-
-            {/* Size +/- (pinch still works; this makes resize obvious) */}
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: -62,
-                alignItems: 'center',
-                zIndex: 9,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  backgroundColor: 'rgba(0,0,0,0.88)',
-                  borderWidth: 1.5,
-                  borderColor: 'rgba(255,200,1,0.55)',
-                }}
-              >
-                <Pressable
-                  onPress={() => {
-                    const s = overlay.scale ?? 1;
-                    onUpdate(overlay.id, { scale: clamp(s * 0.82, 0.35, 5) });
-                  }}
-                  hitSlop={8}
-                  style={({ pressed }) => ({
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: pressed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  })}
-                >
-                  <Ionicons name="remove" size={22} color="#fff" />
-                </Pressable>
-                <View style={{ alignItems: 'center', minWidth: 56 }}>
-                  <Text style={{ color: '#ffc801', fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>SIZE</Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 9, marginTop: 1 }}>
-                    {(overlay.scale ?? 1).toFixed(2)}×
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => {
-                    const s = overlay.scale ?? 1;
-                    onUpdate(overlay.id, { scale: clamp(s * 1.2, 0.35, 5) });
-                  }}
-                  hitSlop={8}
-                  style={({ pressed }) => ({
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: pressed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  })}
-                >
-                  <Ionicons name="add" size={22} color="#fff" />
-                </Pressable>
-              </View>
-              <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, marginTop: 4, fontWeight: '600' }}>
-                Pinch with two fingers to resize
-              </Text>
-            </View>
-          </>
-        ) : null}
       </Animated.View>
     </GestureDetector>
   );
@@ -390,6 +382,26 @@ function StickerOverlayEditorView({ overlay, isSelected }) {
 }
 
 function MusicEditorView({ overlay, isSelected }) {
+  if (overlay.display === 'none') {
+    return (
+      <View
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: 'rgba(0,0,0,0.55)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: isSelected ? 2.5 : 1.5,
+          borderColor: isSelected ? 'rgba(255,200,1,0.95)' : 'rgba(255,255,255,0.35)',
+          transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
+        }}
+      >
+        <Ionicons name="headset" size={20} color="#1DB954" />
+      </View>
+    );
+  }
+
   return (
     <View
       style={{

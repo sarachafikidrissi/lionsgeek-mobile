@@ -26,6 +26,7 @@ import DrawingCanvas from '@/components/stories/editor/DrawingCanvas';
 import UserPickerSheet from '@/components/stories/editor/UserPickerSheet';
 import MusicPickerSheet from '@/components/stories/editor/MusicPickerSheet';
 import OverlayRenderer from '@/components/stories/OverlayRenderer';
+import GradientOverlay from '@/components/ui/GradientOverlay';
 
 /**
  * Story creation screen.
@@ -299,11 +300,13 @@ export default function CreateStoryScreen() {
   const addMusicOverlay = useCallback((data) => {
     if (!data?.preview_url) return;
     // Replace existing music overlay if present (one song per story, just like Instagram).
+    const disp = data.display ?? 'none';
     const o = {
       id: makeId(),
       type: 'music',
-      x: 0.5,
-      y: 0.18, // place near the top by default
+      // Sound-only: tiny editor handle top-right; stickers default near top center.
+      x: disp === 'none' ? 0.88 : 0.5,
+      y: disp === 'none' ? 0.2 : 0.18,
       scale: 1,
       rotation: 0,
       track_id:    data.track_id,
@@ -314,7 +317,7 @@ export default function CreateStoryScreen() {
       preview_url: data.preview_url,
       start_ms:    data.start_ms ?? 0,
       end_ms:      data.end_ms ?? 15000,
-      display:     data.display || 'pill',
+      display:     disp,
       source:      data.source || 'spotify+itunes',
     };
     setOverlays((prev) => {
@@ -686,8 +689,14 @@ export default function CreateStoryScreen() {
   // Picker (initial sheet)
   // ────────────────────────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <View style={{ flex: 1, backgroundColor: '#050508' }}>
       <StatusBar style="light" />
+
+      <GradientOverlay
+        colors={['rgba(255,200,1,0.12)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.5)']}
+        stops={[0, 0.45, 1]}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
 
       <Pressable
         onPress={close}
@@ -695,61 +704,84 @@ export default function CreateStoryScreen() {
         style={{
           position: 'absolute',
           top: (Platform.OS === 'ios' ? 54 : RNStatusBar.currentHeight ?? 24) + 6,
-          left: 16, zIndex: 2,
-          width: 38, height: 38, borderRadius: 19,
-          backgroundColor: 'rgba(255,255,255,0.12)',
-          alignItems: 'center', justifyContent: 'center',
+          left: 16,
+          zIndex: 2,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1.5,
+          borderColor: 'rgba(255,200,1,0.35)',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         <Ionicons name="close" size={22} color="#fff" />
       </Pressable>
 
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
         <View style={{
-          width: 78, height: 78, borderRadius: 39,
+          width: 88,
+          height: 88,
+          borderRadius: 44,
           backgroundColor: '#ffc801',
-          alignItems: 'center', justifyContent: 'center',
-          marginBottom: 18,
-        }}>
-          <Ionicons name="camera" size={36} color="#000" />
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 22,
+          borderWidth: 3,
+          borderColor: 'rgba(0,0,0,0.15)',
+          shadowColor: '#ffc801',
+          shadowOpacity: 0.45,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 12,
+        }}
+        >
+          <Ionicons name="camera" size={40} color="#000" />
         </View>
 
-        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', textAlign: 'center' }}>
-          Share a moment
+        <Text style={{ color: '#fff', fontSize: 26, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 }}>
+          New story
         </Text>
-        <Text style={{ color: 'rgba(255,255,255,0.6)', marginTop: 8, textAlign: 'center' }}>
-          Stories disappear after 24 hours.
+        <Text style={{ color: 'rgba(255,255,255,0.55)', marginTop: 10, textAlign: 'center', fontSize: 15, lineHeight: 22, fontWeight: '500' }}>
+          Pick a photo or video. It disappears after 24 hours.
         </Text>
 
-        <View style={{ width: '100%', marginTop: 36, gap: 12 }}>
+        <View style={{ width: '100%', marginTop: 40, gap: 14 }}>
           <Pressable
             onPress={captureFromCamera}
             style={({ pressed }) => ({
-              paddingVertical: 16, borderRadius: 14,
-              backgroundColor: pressed ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.08)',
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-              borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+              paddingVertical: 18,
+              borderRadius: 18,
+              backgroundColor: pressed ? 'rgba(255,200,1,0.18)' : 'rgba(255,255,255,0.07)',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              borderWidth: 1.5,
+              borderColor: pressed ? 'rgba(255,200,1,0.45)' : 'rgba(255,255,255,0.14)',
             })}
           >
-            <Ionicons name="camera-outline" size={20} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
-              Take photo or video
-            </Text>
+            <Ionicons name="camera-outline" size={22} color="#ffc801" />
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }}>Camera</Text>
           </Pressable>
 
           <Pressable
             onPress={pickFromGallery}
             style={({ pressed }) => ({
-              paddingVertical: 16, borderRadius: 14,
-              backgroundColor: pressed ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.08)',
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-              borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+              paddingVertical: 18,
+              borderRadius: 18,
+              backgroundColor: pressed ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              borderWidth: 1.5,
+              borderColor: 'rgba(255,255,255,0.12)',
             })}
           >
-            <Ionicons name="images-outline" size={20} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
-              Choose from gallery
-            </Text>
+            <Ionicons name="images-outline" size={22} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }}>Gallery</Text>
           </Pressable>
         </View>
       </View>

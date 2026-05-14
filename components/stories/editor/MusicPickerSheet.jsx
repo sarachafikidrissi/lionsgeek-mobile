@@ -25,6 +25,7 @@ import { BlurView } from 'expo-blur';
 import { Audio } from 'expo-av';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: WINDOW_W, height: WINDOW_H } = Dimensions.get('window');
 const SHEET_H = Math.round(WINDOW_H * 0.82);
@@ -36,9 +37,10 @@ const PREVIEW_DURATION_MS = 30_000;
 const CLIP_DURATION_MS    = 15_000;
 
 const DISPLAY_STYLES = [
-  { id: 'pill',    label: 'Pill',    icon: 'radio-button-on' },
-  { id: 'card',    label: 'Card',    icon: 'square' },
-  { id: 'minimal', label: 'Minimal', icon: 'remove' },
+  { id: 'none',    label: 'Sound only', icon: 'headset' },
+  { id: 'pill',    label: 'Pill',       icon: 'radio-button-on' },
+  { id: 'card',    label: 'Card',       icon: 'square' },
+  { id: 'minimal', label: 'Minimal',    icon: 'remove' },
 ];
 
 /**
@@ -60,6 +62,7 @@ const DISPLAY_STYLES = [
  */
 export default function MusicPickerSheet({ visible, onClose, onPick }) {
   const { token } = useAppContext();
+  const insets = useSafeAreaInsets();
   const translateY = useSharedValue(SHEET_H);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -67,7 +70,7 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
   const [source, setSource] = useState(null); // 'spotify+itunes' | 'itunes'
   const [selected, setSelected] = useState(null);
   const [startMs, setStartMs] = useState(0);
-  const [display, setDisplay] = useState('pill');
+  const [display, setDisplay] = useState('none');
   const [playing, setPlaying] = useState(false);
   const inputRef = useRef(null);
   const soundRef = useRef(null);
@@ -87,7 +90,7 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
         setResults([]);
         setSelected(null);
         setStartMs(0);
-        setDisplay('pill');
+        setDisplay('none');
       }, 220);
     }
   }, [visible]);
@@ -206,6 +209,7 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
   const handleSelectTrack = useCallback(async (track) => {
     setSelected(track);
     setStartMs(0);
+    setDisplay('none');
     await playTrack(track);
   }, [playTrack]);
 
@@ -454,43 +458,50 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
           {selected ? (
             <View
               style={{
-                position: 'absolute', left: 0, right: 0, bottom: 0,
-                backgroundColor: '#111118',
-                borderTopLeftRadius: 22,
-                borderTopRightRadius: 22,
-                paddingTop: 14,
-                paddingBottom: Platform.OS === 'ios' ? 32 : 20,
-                paddingHorizontal: 16,
-                borderTopWidth: 1,
-                borderColor: 'rgba(255,255,255,0.12)',
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: '#07070d',
+                borderTopLeftRadius: 28,
+                borderTopRightRadius: 28,
+                paddingTop: 18,
+                paddingBottom: Math.max(insets.bottom, 14) + 14,
+                paddingHorizontal: 18,
+                borderTopWidth: 3,
+                borderLeftWidth: 1,
+                borderRightWidth: 1,
+                borderColor: 'rgba(255,200,1,0.55)',
                 shadowColor: '#000',
-                shadowOpacity: 0.55,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: -6 },
-                elevation: 24,
+                shadowOpacity: 0.6,
+                shadowRadius: 24,
+                shadowOffset: { width: 0, height: -10 },
+                elevation: 28,
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 }}>
                 {selected.cover_url ? (
                   <Image
                     source={{ uri: selected.cover_url }}
-                    style={{ width: 56, height: 56, borderRadius: 12, backgroundColor: '#222' }}
+                    style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#222' }}
                   />
                 ) : (
                   <View style={{
-                    width: 56, height: 56, borderRadius: 12,
+                    width: 64, height: 64, borderRadius: 16,
                     backgroundColor: 'rgba(255,255,255,0.08)',
                     alignItems: 'center', justifyContent: 'center',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,200,1,0.25)',
                   }}
                   >
-                    <Ionicons name="musical-note" size={24} color="rgba(255,255,255,0.85)" />
+                    <Ionicons name="musical-note" size={28} color="rgba(255,255,255,0.85)" />
                   </View>
                 )}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={2} style={{ color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: -0.2 }}>
+                  <Text numberOfLines={2} style={{ color: '#fff', fontWeight: '900', fontSize: 17, letterSpacing: -0.3 }}>
                     {selected.title}
                   </Text>
-                  <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 4, fontWeight: '500' }}>
+                  <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 5, fontWeight: '600' }}>
                     {selected.artist}
                   </Text>
                 </View>
@@ -498,31 +509,41 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
                   onPress={togglePlay}
                   hitSlop={10}
                   style={({ pressed }) => ({
-                    width: 48, height: 48, borderRadius: 24,
+                    width: 52, height: 52, borderRadius: 26,
                     backgroundColor: '#1DB954',
                     alignItems: 'center', justifyContent: 'center',
                     opacity: pressed ? 0.88 : 1,
                     borderWidth: 2,
-                    borderColor: 'rgba(255,255,255,0.2)',
+                    borderColor: 'rgba(255,255,255,0.25)',
                   })}
                 >
-                  <Ionicons name={playing ? 'pause' : 'play'} size={22} color="#000" style={playing ? null : { marginLeft: 3 }} />
+                  <Ionicons name={playing ? 'pause' : 'play'} size={24} color="#000" style={playing ? null : { marginLeft: 3 }} />
                 </Pressable>
               </View>
 
-              <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 8, fontWeight: '700', letterSpacing: 0.4 }}>
-                {`CLIP  ${formatMs(startMs)}  →  ${formatMs(startMs + CLIP_DURATION_MS)}`}
-              </Text>
+              <View style={{
+                alignSelf: 'flex-start',
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 8,
+                backgroundColor: 'rgba(255,200,1,0.12)',
+                marginBottom: 10,
+              }}
+              >
+                <Text style={{ color: '#ffc801', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>
+                  {`CLIP  ${formatMs(startMs)}  →  ${formatMs(startMs + CLIP_DURATION_MS)}`}
+                </Text>
+              </View>
               <GestureDetector gesture={trimPanGesture}>
                 <View
                   onLayout={onTrackBarLayout}
                   style={{
-                    height: 64, borderRadius: 14,
-                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    height: 68, borderRadius: 16,
+                    backgroundColor: 'rgba(255,255,255,0.03)',
                     overflow: 'hidden',
                     position: 'relative',
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderWidth: 1.5,
+                    borderColor: 'rgba(255,200,1,0.22)',
                   }}
                 >
                   <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 2 }}>
@@ -532,7 +553,7 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
                         style={{
                           flex: 1,
                           height: `${h * 88}%`,
-                          backgroundColor: 'rgba(255,255,255,0.2)',
+                          backgroundColor: 'rgba(255,200,1,0.25)',
                           borderRadius: 2,
                         }}
                       />
@@ -543,54 +564,69 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
                 </View>
               </GestureDetector>
 
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 10 }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
-                  {DISPLAY_STYLES.map((s) => {
-                    const active = display === s.id;
-                    return (
-                      <Pressable
-                        key={s.id}
-                        onPress={() => setDisplay(s.id)}
-                        style={({ pressed }) => ({
-                          paddingHorizontal: 14, paddingVertical: 10,
-                          borderRadius: 999,
-                          backgroundColor: active ? '#1DB954' : 'rgba(255,255,255,0.07)',
-                          opacity: pressed ? 0.88 : 1,
-                          flexDirection: 'row', alignItems: 'center', gap: 6,
-                          borderWidth: 1,
-                          borderColor: active ? '#1DB954' : 'rgba(255,255,255,0.1)',
-                        })}
-                      >
-                        <Ionicons name={s.icon} size={14} color={active ? '#000' : '#fff'} />
-                        <Text style={{
-                          color: active ? '#000' : '#fff',
-                          fontWeight: '800',
-                          fontSize: 12,
-                        }}>
-                          {s.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-                <Pressable
-                  onPress={commit}
-                  style={({ pressed }) => ({
-                    paddingHorizontal: 20, paddingVertical: 12,
-                    borderRadius: 999,
-                    backgroundColor: '#ffc801',
-                    opacity: pressed ? 0.88 : 1,
-                    flexDirection: 'row', alignItems: 'center', gap: 6,
-                    shadowColor: '#ffc801',
-                    shadowOpacity: 0.35,
-                    shadowRadius: 10,
-                    shadowOffset: { width: 0, height: 2 },
-                  })}
-                >
-                  <Ionicons name="checkmark-circle" size={18} color="#000" />
-                  <Text style={{ color: '#000', fontWeight: '900', fontSize: 14 }}>Add</Text>
-                </Pressable>
-              </View>
+              <Text style={{ color: 'rgba(255,255,255,0.38)', fontSize: 10, fontWeight: '900', letterSpacing: 1.4, marginTop: 18, marginBottom: 10 }}>
+                ON YOUR STORY
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingBottom: 4 }}
+              >
+                {DISPLAY_STYLES.map((s) => {
+                  const active = display === s.id;
+                  return (
+                    <Pressable
+                      key={s.id}
+                      onPress={() => setDisplay(s.id)}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 16,
+                        paddingVertical: 11,
+                        borderRadius: 999,
+                        backgroundColor: active ? '#ffc801' : 'rgba(255,255,255,0.06)',
+                        opacity: pressed ? 0.88 : 1,
+                        flexDirection: 'row', alignItems: 'center', gap: 7,
+                        borderWidth: 1.5,
+                        borderColor: active ? '#ffc801' : 'rgba(255,255,255,0.12)',
+                      })}
+                    >
+                      <Ionicons name={s.icon} size={15} color={active ? '#000' : 'rgba(255,255,255,0.85)'} />
+                      <Text style={{
+                        color: active ? '#000' : '#fff',
+                        fontWeight: '800',
+                        fontSize: 12,
+                      }}>
+                        {s.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <Pressable
+                onPress={commit}
+                style={({ pressed }) => ({
+                  marginTop: 16,
+                  width: '100%',
+                  paddingVertical: 16,
+                  borderRadius: 16,
+                  backgroundColor: '#ffc801',
+                  opacity: pressed ? 0.9 : 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  borderWidth: 2,
+                  borderColor: 'rgba(0,0,0,0.12)',
+                  shadowColor: '#ffc801',
+                  shadowOpacity: 0.45,
+                  shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: 8,
+                })}
+              >
+                <Ionicons name="checkmark-circle" size={22} color="#000" />
+                <Text style={{ color: '#000', fontWeight: '900', fontSize: 16 }}>Add to story</Text>
+              </Pressable>
             </View>
           ) : null}
         </Animated.View>
