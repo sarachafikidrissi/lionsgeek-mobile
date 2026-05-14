@@ -35,6 +35,13 @@ const cardShadow =
       }
     : { elevation: 5 };
 
+/** Labels for the three attendance slots (matches API morning / lunch / evening). */
+const SLOT_COLUMNS = [
+  { key: 'morning', label: 'Morning' },
+  { key: 'lunch', label: 'Midday' },
+  { key: 'evening', label: 'Afternoon' },
+];
+
 function formatDayHeader(raw) {
   const s = String(raw).slice(0, 10);
   const d = parseISO(s);
@@ -70,7 +77,8 @@ function TableSlotCell({ status }) {
 
 function humanizeIssue(issue) {
   const [slot, stat] = String(issue).split('_');
-  const slotName = slot === 'morning' ? 'Morning' : slot === 'lunch' ? 'Lunch' : slot === 'evening' ? 'Evening' : slot;
+  const col = SLOT_COLUMNS.find((c) => c.key === slot);
+  const slotName = col?.label ?? slot;
   const statWord =
     stat === 'absent' ? 'absent' : stat === 'late' ? 'late' : stat === 'excused' ? 'excused' : stat || '';
   return `${slotName} ${statWord}`.trim();
@@ -95,9 +103,11 @@ function TableHeaderRow() {
       <View style={{ flex: 2, paddingRight: 8 }}>
         <Text className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">Day</Text>
       </View>
-      {['M', 'L', 'E'].map((h) => (
-        <View key={h} style={{ flex: 1, alignItems: 'center' }}>
-          <Text className="text-[12px] font-bold text-[#ffcc00]">{h}</Text>
+      {SLOT_COLUMNS.map(({ key, label }) => (
+        <View key={key} style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2 }}>
+          <Text className="text-center text-[11px] font-bold leading-tight text-[#ffcc00]" numberOfLines={2}>
+            {label}
+          </Text>
         </View>
       ))}
     </View>
@@ -177,7 +187,7 @@ function TableLoadingSkeleton() {
           </View>
           {[0, 1, 2].map((j) => (
             <View key={j} style={{ flex: 1, alignItems: 'center', paddingVertical: 8 }}>
-              <Skeleton width={34} height={34} borderRadius={17} isDark />
+              <Skeleton width={20} height={20} borderRadius={10} isDark />
             </View>
           ))}
         </View>
