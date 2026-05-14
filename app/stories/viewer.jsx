@@ -404,65 +404,71 @@ export default function StoryViewerScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
       <StatusBar style="light" hidden={false} />
-      <GestureDetector gesture={composed}>
-        <Animated.View style={[{ flex: 1, backgroundColor: '#000' }, containerStyle]}>
-          {/* Media layer */}
-          <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
-            {currentStory.media_type === 'video' ? (
-              <Video
-                key={currentStory.id}
-                ref={videoRef}
-                source={{ uri: currentStory.media_url }}
-                style={{ width: WINDOW_W, height: WINDOW_H }}
-                resizeMode={ResizeMode.COVER}
-                shouldPlay={!isPausedRef.current}
-                isMuted={videoIsMuted}
-                useNativeControls={false}
-                onLoad={() => setVideoReady(true)}
-                onError={() => setVideoReady(true)}
-                onPlaybackStatusUpdate={(status) => {
-                  if (status?.didJustFinish) advance();
+      {/*
+        Gestures (tap prev/next, long-press pause, swipe-down close) are
+        attached ONLY to the media layer. Header, reactions and reply sit in
+        a sibling overlay so their touches never trigger story navigation.
+      */}
+      <Animated.View style={[{ flex: 1, backgroundColor: '#000' }, containerStyle]}>
+        <GestureDetector gesture={composed}>
+          <View style={{ flex: 1 }}>
+            {/* Media layer — sole target for tap / pan / long-press */}
+            <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
+              {currentStory.media_type === 'video' ? (
+                <Video
+                  key={currentStory.id}
+                  ref={videoRef}
+                  source={{ uri: currentStory.media_url }}
+                  style={{ width: WINDOW_W, height: WINDOW_H }}
+                  resizeMode={ResizeMode.COVER}
+                  shouldPlay={!isPausedRef.current}
+                  isMuted={videoIsMuted}
+                  useNativeControls={false}
+                  onLoad={() => setVideoReady(true)}
+                  onError={() => setVideoReady(true)}
+                  onPlaybackStatusUpdate={(status) => {
+                    if (status?.didJustFinish) advance();
+                  }}
+                />
+              ) : (
+                <Image
+                  key={currentStory.id}
+                  source={{ uri: currentStory.media_url }}
+                  style={{ width: WINDOW_W, height: WINDOW_H }}
+                  resizeMode="cover"
+                />
+              )}
+
+              {currentStory.media_type === 'video' && !videoReady ? (
+                <ActivityIndicator
+                  size="large"
+                  color="#fff"
+                  style={{ position: 'absolute' }}
+                />
+              ) : null}
+
+              <OverlayRenderer
+                overlays={currentStory.overlays}
+                musicAnimated={!musicPaused}
+                onMentionPress={(o) => {
+                  if (!o?.user_id) return;
+                  pause();
+                  doClose();
+                  setTimeout(() => router.push(`/(tabs)/profile?userId=${o.user_id}`), 240);
                 }}
               />
-            ) : (
-              <Image
-                key={currentStory.id}
-                source={{ uri: currentStory.media_url }}
-                style={{ width: WINDOW_W, height: WINDOW_H }}
-                resizeMode="cover"
-              />
-            )}
-
-            {currentStory.media_type === 'video' && !videoReady ? (
-              <ActivityIndicator
-                size="large"
-                color="#fff"
-                style={{ position: 'absolute' }}
-              />
-            ) : null}
-
-            {/* Creative overlays (text, stickers, drawings, mentions, music) applied at creation time. */}
-            <OverlayRenderer
-              overlays={currentStory.overlays}
-              musicAnimated={!musicPaused}
-              onMentionPress={(o) => {
-                if (!o?.user_id) return;
-                pause();
-                doClose();
-                // Defer so the modal closing animation runs before navigation.
-                setTimeout(() => router.push(`/(tabs)/profile?userId=${o.user_id}`), 240);
-              }}
-            />
+            </View>
           </View>
+        </GestureDetector>
 
+        {/* Chrome above the gesture layer — receives taps before navigation */}
+        <View pointerEvents="box-none" style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
           {/* Top overlay: progress bars + header */}
           <View
             pointerEvents="box-none"
             style={{
-              position: 'absolute', top: 0, left: 0, right: 0,
               paddingTop: TOP_INSET,
               paddingHorizontal: 10,
-              backgroundColor: 'transparent',
             }}
           >
             {/* Progress bars */}
@@ -533,7 +539,7 @@ export default function StoryViewerScreen() {
 
               <View style={{ flex: 1 }} />
 
-              {currentStory.media_type === 'video' ? (
+              {currentStory.media_type === 'video' || !!musicOverlay ? (
                 <Pressable
                   onPress={() => setMuted((m) => !m)}
                   hitSlop={10}
@@ -641,8 +647,8 @@ export default function StoryViewerScreen() {
               />
             </View>
           )}
-        </Animated.View>
-      </GestureDetector>
+        </View>
+      </Animated.View>
 
       {/* Viewer sheet (own stories) */}
       <ViewerListSheet
