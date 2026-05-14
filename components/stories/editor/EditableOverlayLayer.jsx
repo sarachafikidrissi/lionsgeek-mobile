@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Image } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -73,75 +74,115 @@ function DraggableOverlay({
   const baseScale = overlay.scale ?? 1;
   const baseRotation = overlay.rotation ?? 0;
 
+  const overlayRef = useRef(overlay);
+  const sizeRef = useRef(containerSize);
+  overlayRef.current = overlay;
+  sizeRef.current = containerSize;
+
   // Pan deltas (committed to overlay.x/y on release)
   const offsetX = useSharedValue(0);
   const offsetY = useSharedValue(0);
-  // Pinch/rotation deltas (committed on release)
-  const scaleFactor = useSharedValue(1);    // multiplier applied during pinch
-  const rotationDelta = useSharedValue(0);  // additional rotation during gesture
-  // UI selection pop
+  const scaleFactor = useSharedValue(1);
+  const rotationDelta = useSharedValue(0);
   const selectPop = useSharedValue(isSelected ? 1.05 : 1);
-  selectPop.value = withTiming(isSelected ? 1.05 : 1, { duration: 140 });
+
+  useEffect(() => {
+    selectPop.value = withTiming(isSelected ? 1.05 : 1, { duration: 140 });
+  }, [isSelected, selectPop]);
+
+  /** All math runs on JS — avoids worklet crashes from reading React state. */
+  const commitPan = useCallback((translationX, translationY) => {
+    const { width: w, height: h } = sizeRef.current || {};
+    const o = overlayRef.current;
+    if (!w || !h || !o?.id) return;
+    const bx = (o.x ?? 0.5) * w;
+    const by = (o.y ?? 0.5) * h;
+    const nx = clamp((bx + translationX) / w, 0.02, 0.98);
+    const ny = clamp((by + translationY) / h, 0.02, 0.98);
+    onUpdate(o.id, { x: nx, y: ny });
+    offsetX.value = 0;
+    offsetY.value = 0;
+  }, [onUpdate, offsetX, offsetY]);
+
+  const commitPinch = useCallback((scale) => {
+    const o = overlayRef.current;
+    if (!o?.id) return;
+    const bs = o.scale ?? 1;
+    const newScale = clamp(bs * scale, 0.35, 5);
+    onUpdate(o.id, { scale: newScale });
+    scaleFactor.value = 1;
+  }, [onUpdate, scaleFactor]);
+
+  const commitRotation = useCallback((rotationRad) => {
+    const o = overlayRef.current;
+    if (!o?.id) return;
+    const br = o.rotation ?? 0;
+    const degDelta = (rotationRad * 180) / Math.PI;
+    const newRot = ((br + degDelta) % 360 + 360) % 360;
+    onUpdate(o.id, { rotation: newRot });
+    rotationDelta.value = 0;
+  }, [onUpdate, rotationDelta]);
+
+  const selectById = useCallback(() => {
+    onSelect(overlayRef.current?.id);
+  }, [onSelect]);
+
+  const doDoubleTap = useCallback(() => {
+    const o = overlayRef.current;
+    if (!o) return;
+    if (o.type === 'text') onEditText?.(o);
+    else if (o.type === 'mention') onEditMention?.(o);
+  }, [onEditText, onEditMention]);
 
   // ── Pan ────────────────────────────────────────────────────────────
   const panGesture = Gesture.Pan()
-    .minDistance(2)
-    .onBegin(() => runOnJS(onSelect)(overlay.id))
+    .minDistance(4)
+    .onBegin(() => {
+      runOnJS(selectById)();
+    })
     .onUpdate((e) => {
       offsetX.value = e.translationX;
       offsetY.value = e.translationY;
     })
     .onEnd((e) => {
-      const nx = clamp((baseX + e.translationX) / containerSize.width, 0.02, 0.98);
-      const ny = clamp((baseY + e.translationY) / containerSize.height, 0.02, 0.98);
-      runOnJS(onUpdate)(overlay.id, { x: nx, y: ny });
-      offsetX.value = 0;
-      offsetY.value = 0;
+      runOnJS(commitPan)(e.translationX, e.translationY);
     });
 
   // ── Pinch ──────────────────────────────────────────────────────────
   const pinchGesture = Gesture.Pinch()
-    .onBegin(() => runOnJS(onSelect)(overlay.id))
+    .onBegin(() => {
+      runOnJS(selectById)();
+    })
     .onUpdate((e) => {
       scaleFactor.value = e.scale;
     })
     .onEnd((e) => {
-      const newScale = clamp(baseScale * e.scale, 0.4, 5);
-      runOnJS(onUpdate)(overlay.id, { scale: newScale });
-      scaleFactor.value = 1;
+      runOnJS(commitPinch)(e.scale);
     });
 
   // ── Rotation ───────────────────────────────────────────────────────
   const rotationGesture = Gesture.Rotation()
-    .onBegin(() => runOnJS(onSelect)(overlay.id))
+    .onBegin(() => {
+      runOnJS(selectById)();
+    })
     .onUpdate((e) => {
-      // e.rotation is in radians.
       rotationDelta.value = (e.rotation * 180) / Math.PI;
     })
     .onEnd((e) => {
-      const degDelta = (e.rotation * 180) / Math.PI;
-      const newRot = ((baseRotation + degDelta) % 360 + 360) % 360;
-      runOnJS(onUpdate)(overlay.id, { rotation: newRot });
-      rotationDelta.value = 0;
+      runOnJS(commitRotation)(e.rotation);
     });
-
-  // ── Tap & double-tap ───────────────────────────────────────────────
-  const tapGesture = Gesture.Tap()
-    .maxDuration(220)
-    .onEnd(() => { runOnJS(onSelect)(overlay.id); });
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
-    .maxDuration(280)
+    .maxDuration(320)
     .onEnd(() => {
-      if (overlay.type === 'text') runOnJS(onEditText)(overlay);
-      else if (overlay.type === 'mention') runOnJS(onEditMention)(overlay);
+      runOnJS(doDoubleTap)();
     });
 
-  // Compose: double-tap wins over single, pan/pinch/rotation run simultaneously.
-  const composed = Gesture.Race(
+  // Double-tap first; otherwise pan / pinch / rotate together (no Race+Simultaneous mix).
+  const composed = Gesture.Exclusive(
     doubleTap,
-    Gesture.Simultaneous(panGesture, pinchGesture, rotationGesture, tapGesture),
+    Gesture.Simultaneous(panGesture, pinchGesture, rotationGesture),
   );
 
   const containerStyle = useAnimatedStyle(() => ({
@@ -154,7 +195,7 @@ function DraggableOverlay({
       { scale: scaleFactor.value * selectPop.value },
       { rotate: `${rotationDelta.value}deg` },
     ],
-  }));
+  }), [baseX, baseY]);
 
   return (
     <GestureDetector gesture={composed}>
@@ -180,21 +221,102 @@ function DraggableOverlay({
         </View>
 
         {isSelected ? (
-          <Pressable
-            onPress={() => onDelete(overlay.id)}
-            hitSlop={10}
-            style={{
-              position: 'absolute',
-              top: -22, right: -22,
-              width: 28, height: 28, borderRadius: 14,
-              backgroundColor: 'rgba(239,68,68,0.95)',
-              alignItems: 'center', justifyContent: 'center',
-              shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4,
-              elevation: 4,
-            }}
-          >
-            <Ionicons name="close" size={16} color="#fff" />
-          </Pressable>
+          <>
+            <Pressable
+              onPress={() => onDelete(overlay.id)}
+              hitSlop={12}
+              style={{
+                position: 'absolute',
+                top: -26,
+                right: -26,
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: 'rgba(239,68,68,0.98)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10,
+                borderWidth: 2,
+                borderColor: 'rgba(255,255,255,0.95)',
+                shadowColor: '#000',
+                shadowOpacity: 0.45,
+                shadowRadius: 6,
+                elevation: 8,
+              }}
+            >
+              <Ionicons name="close" size={18} color="#fff" />
+            </Pressable>
+
+            {/* Size +/- (pinch still works; this makes resize obvious) */}
+            <View
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: -62,
+                alignItems: 'center',
+                zIndex: 9,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor: 'rgba(0,0,0,0.88)',
+                  borderWidth: 1.5,
+                  borderColor: 'rgba(255,200,1,0.55)',
+                }}
+              >
+                <Pressable
+                  onPress={() => {
+                    const s = overlay.scale ?? 1;
+                    onUpdate(overlay.id, { scale: clamp(s * 0.82, 0.35, 5) });
+                  }}
+                  hitSlop={8}
+                  style={({ pressed }) => ({
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: pressed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  })}
+                >
+                  <Ionicons name="remove" size={22} color="#fff" />
+                </Pressable>
+                <View style={{ alignItems: 'center', minWidth: 56 }}>
+                  <Text style={{ color: '#ffc801', fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>SIZE</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 9, marginTop: 1 }}>
+                    {(overlay.scale ?? 1).toFixed(2)}×
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    const s = overlay.scale ?? 1;
+                    onUpdate(overlay.id, { scale: clamp(s * 1.2, 0.35, 5) });
+                  }}
+                  hitSlop={8}
+                  style={({ pressed }) => ({
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: pressed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  })}
+                >
+                  <Ionicons name="add" size={22} color="#fff" />
+                </Pressable>
+              </View>
+              <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, marginTop: 4, fontWeight: '600' }}>
+                Pinch with two fingers to resize
+              </Text>
+            </View>
+          </>
         ) : null}
       </Animated.View>
     </GestureDetector>
@@ -214,9 +336,9 @@ function TextOverlayEditorView({ overlay, isSelected }) {
       backgroundColor: hasBg ? bgColor : 'transparent',
       borderRadius: hasBg ? 8 : 0,
       maxWidth: 320,
-      borderWidth: isSelected ? 1 : 0,
-      borderColor: isSelected ? 'rgba(255,255,255,0.9)' : 'transparent',
-      borderStyle: 'dashed',
+      borderWidth: isSelected ? 2.5 : 0,
+      borderColor: isSelected ? 'rgba(255,200,1,0.95)' : 'transparent',
+      borderStyle: 'solid',
       transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
     }}>
       <Text
@@ -244,9 +366,9 @@ function StickerOverlayEditorView({ overlay, isSelected }) {
       style={{
         width: size, height: size,
         alignItems: 'center', justifyContent: 'center',
-        borderWidth: isSelected ? 1 : 0,
-        borderColor: isSelected ? 'rgba(255,255,255,0.9)' : 'transparent',
-        borderStyle: 'dashed',
+        borderWidth: isSelected ? 2.5 : 0,
+        borderColor: isSelected ? 'rgba(255,200,1,0.95)' : 'transparent',
+        borderStyle: 'solid',
         borderRadius: 8,
         transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
       }}
@@ -280,9 +402,9 @@ function MusicEditorView({ overlay, isSelected }) {
         borderRadius: 999,
         backgroundColor: 'rgba(0,0,0,0.55)',
         maxWidth: 240,
-        borderWidth: isSelected ? 1 : 0,
-        borderColor: isSelected ? 'rgba(255,255,255,0.9)' : 'transparent',
-        borderStyle: 'dashed',
+        borderWidth: isSelected ? 2.5 : 0,
+        borderColor: isSelected ? 'rgba(255,200,1,0.95)' : 'transparent',
+        borderStyle: 'solid',
         transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
       }}
     >
@@ -326,9 +448,9 @@ function MentionEditorView({ overlay, isSelected }) {
       paddingVertical: hasBg ? 7 : 3,
       backgroundColor: hasBg ? bgColor : 'rgba(0,0,0,0.55)',
       borderRadius: hasBg ? 999 : 6,
-      borderWidth: isSelected ? 1 : 0,
-      borderColor: isSelected ? 'rgba(255,255,255,0.9)' : 'transparent',
-      borderStyle: 'dashed',
+      borderWidth: isSelected ? 2.5 : 0,
+      borderColor: isSelected ? 'rgba(255,200,1,0.95)' : 'transparent',
+      borderStyle: 'solid',
       transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
     }}>
       <Text style={{
@@ -345,7 +467,9 @@ function MentionEditorView({ overlay, isSelected }) {
   );
 }
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
 
 function pickContrasting(hex) {
   if (!hex || typeof hex !== 'string') return '#000';

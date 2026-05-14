@@ -305,7 +305,10 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
 
   // ─── Render ────────────────────────────────────────────────────────────
   return (
-    <View pointerEvents={visible ? 'auto' : 'none'} style={{ position: 'absolute', inset: 0 }}>
+    <View
+      pointerEvents={visible ? 'auto' : 'none'}
+      style={{ position: 'absolute', inset: 0, zIndex: 2000, elevation: 2000 }}
+    >
       <Pressable onPress={dismiss} style={{ position: 'absolute', inset: 0 }}>
         <Animated.View style={[{ flex: 1, backgroundColor: '#000' }, backdropStyle]} />
       </Pressable>

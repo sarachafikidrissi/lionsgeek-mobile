@@ -69,9 +69,8 @@ export default function UserPickerSheet({ visible, onClose, onPick }) {
       try {
         const data = await API.searchUsers(q, token);
         if (cancelled) return;
-        const users = Array.isArray(data?.results)
-          ? data.results.filter((r) => r?.type === 'user' || !r?.type)
-          : [];
+        const list = Array.isArray(data?.results) ? data.results : [];
+        const users = list.filter((r) => r?.type === 'user' || !r?.type);
         setResults(users);
       } catch (_) {
         if (!cancelled) setResults([]);
@@ -110,7 +109,10 @@ export default function UserPickerSheet({ visible, onClose, onPick }) {
   if (!visible && translateY.value === SHEET_H) return null;
 
   return (
-    <View pointerEvents={visible ? 'auto' : 'none'} style={{ position: 'absolute', inset: 0 }}>
+    <View
+      pointerEvents={visible ? 'auto' : 'none'}
+      style={{ position: 'absolute', inset: 0, zIndex: 2000, elevation: 2000 }}
+    >
       <Pressable onPress={dismiss} style={{ position: 'absolute', inset: 0 }}>
         <Animated.View style={[{ flex: 1, backgroundColor: '#000' }, backdropStyle]} />
       </Pressable>

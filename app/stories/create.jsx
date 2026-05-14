@@ -8,12 +8,15 @@ import {
   Alert,
   Platform,
   StatusBar as RNStatusBar,
+  StyleSheet,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode, Audio } from 'expo-av';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import EditableOverlayLayer from '@/components/stories/editor/EditableOverlayLayer';
@@ -38,6 +41,7 @@ import OverlayRenderer from '@/components/stories/OverlayRenderer';
 export default function CreateStoryScreen() {
   const router = useRouter();
   const { token } = useAppContext();
+  const insets = useSafeAreaInsets();
 
   const [media, setMedia] = useState(null); // { uri, type, duration, width, height, mimeType }
   const [uploading, setUploading] = useState(false);
@@ -49,6 +53,8 @@ export default function CreateStoryScreen() {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
   const [drawingMode, setDrawingMode] = useState(false);
+  /** When set, picking a user replaces this mention overlay instead of adding a new one. */
+  const [mentionEditingId, setMentionEditingId] = useState(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const videoRef = useRef(null);
   const previewSoundRef = useRef(null);
@@ -245,23 +251,49 @@ export default function CreateStoryScreen() {
   }, []);
 
   const addMentionOverlay = useCallback((user) => {
-    if (!user?.id || !user?.name) return;
-    const o = {
-      id: makeId(),
-      type: 'mention',
-      x: 0.5,
-      y: 0.5,
-      scale: 1,
-      rotation: 0,
-      user_id: user.id,
-      username: user.name,
-      color: '#ffffff',
-      has_bg: false,
-      bg_color: null,
-    };
-    setOverlays((prev) => [...prev, o]);
-    setSelectedOverlayId(o.id);
+    if (!user?.id) return;
+    const displayName = (user.name || 'User').trim();
+    const editId = mentionEditingId;
+
+    if (editId) {
+      setOverlays((prev) => prev.map((o) => (
+        o.id === editId && o.type === 'mention'
+          ? { ...o, user_id: user.id, username: displayName }
+          : o
+      )));
+      setSelectedOverlayId(editId);
+    } else {
+      const newId = makeId();
+      const o = {
+        id: newId,
+        type: 'mention',
+        x: 0.5,
+        y: 0.5,
+        scale: 1,
+        rotation: 0,
+        user_id: user.id,
+        username: displayName,
+        color: '#ffffff',
+        has_bg: false,
+        bg_color: null,
+      };
+      setOverlays((prev) => [...prev, o]);
+      setSelectedOverlayId(newId);
+    }
+    setMentionEditingId(null);
     setMentionOpen(false);
+  }, [mentionEditingId]);
+
+  const openMentionPicker = useCallback(() => {
+    setMentionEditingId(null);
+    setMentionOpen(true);
+  }, []);
+
+  const editMentionOverlay = useCallback((overlay) => {
+    if (overlay?.type === 'mention' && overlay?.id) {
+      setMentionEditingId(overlay.id);
+      setMentionOpen(true);
+    }
   }, []);
 
   const addMusicOverlay = useCallback((data) => {
@@ -359,13 +391,16 @@ export default function CreateStoryScreen() {
   // Preview
   // ────────────────────────────────────────────────────────────────────
   if (media) {
+    const statusTop = Platform.OS === 'ios' ? 54 : RNStatusBar.currentHeight ?? 24;
+    const bottomChromeClearance = Math.max(insets.bottom, 12) + 102;
+
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <StatusBar style="light" />
 
         {/* Canvas = media + creative layer (measured for normalized coords) */}
         <View
-          style={{ flex: 1 }}
+          style={{ flex: 1, zIndex: 0, elevation: 0 }}
           onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
             if (width !== canvasSize.width || height !== canvasSize.height) {
@@ -408,7 +443,7 @@ export default function CreateStoryScreen() {
               onUpdate={patchOverlay}
               onDelete={deleteOverlay}
               onEditText={editTextOverlay}
-              onEditMention={() => setMentionOpen(true)}
+              onEditMention={editMentionOverlay}
             />
           ) : null}
 
@@ -422,139 +457,197 @@ export default function CreateStoryScreen() {
           />
         </View>
 
-        {/* Top bar: discard + tools — hidden while drawing */}
+        {/* Editor chrome above native Video/Image (BlurView can be invisible on some Android builds). */}
         {!drawingMode ? (
-          <View style={{
-            position: 'absolute',
-            top: (Platform.OS === 'ios' ? 54 : RNStatusBar.currentHeight ?? 24) + 6,
-            left: 16, right: 16,
-            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-          }}>
-            <Pressable
-              onPress={discard}
-              disabled={uploading}
-              hitSlop={12}
-              style={topRoundBtn}
+          <View
+            pointerEvents="box-none"
+            collapsable={false}
+            style={[StyleSheet.absoluteFillObject, { zIndex: 1000, elevation: 1000 }]}
+          >
+            {/* Top-left: close */}
+            <View
+              style={{
+                position: 'absolute',
+                top: statusTop + 6,
+                left: 12,
+              }}
             >
-              <Ionicons name="close" size={22} color="#fff" />
-            </Pressable>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {overlays.length > 0 ? (
-                <Pressable onPress={undoLastOverlay} hitSlop={10} style={topRoundBtn}>
-                  <Ionicons name="arrow-undo" size={18} color="#fff" />
-                </Pressable>
-              ) : null}
-
-              <Pressable
-                onPress={() => setMusicOpen(true)}
-                hitSlop={10}
-                style={[
-                  topRoundBtn,
-                  hasMusicOverlay
-                    ? { backgroundColor: '#1DB954', shadowColor: '#1DB954', shadowOpacity: 0.4, shadowRadius: 8 }
-                    : null,
-                ]}
-              >
-                <Ionicons
-                  name="musical-notes"
-                  size={18}
-                  color={hasMusicOverlay ? '#000' : '#fff'}
-                />
-              </Pressable>
-
-              <Pressable onPress={() => setDrawingMode(true)} hitSlop={10} style={topRoundBtn}>
-                <Ionicons name="pencil" size={18} color="#fff" />
-              </Pressable>
-
-              <Pressable onPress={() => setMentionOpen(true)} hitSlop={10} style={topRoundBtn}>
-                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 17 }}>@</Text>
-              </Pressable>
-
-              <Pressable onPress={() => setEmojiOpen(true)} hitSlop={10} style={topRoundBtn}>
-                <Text style={{ fontSize: 18 }}>😊</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => setTextModal({ open: true, editing: null })}
-                hitSlop={10}
-                style={topRoundBtn}
-              >
-                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: -0.5 }}>
-                  Aa
-                </Text>
-              </Pressable>
+              <EditorGlassButton onPress={discard} disabled={uploading} accessibilityLabel="Discard story">
+                <Ionicons name="close" size={24} color="#fff" />
+              </EditorGlassButton>
             </View>
-          </View>
-        ) : null}
 
-        {/* Bottom: audience toggle + send — hidden while drawing */}
-        {!drawingMode ? (
-        <View style={{
-          position: 'absolute', bottom: 32, left: 16, right: 16,
-          flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
-        }}>
-          <View style={{ alignItems: 'flex-start', gap: 6 }}>
+            {/* Right rail: creative tools — vertically centered between close and bottom bar */}
+            <View
+              pointerEvents="box-none"
+              style={{
+                position: 'absolute',
+                top: statusTop + 56,
+                right: 8,
+                bottom: bottomChromeClearance,
+                justifyContent: 'center',
+                alignItems: 'flex-end',
+              }}
+            >
+              <View
+                pointerEvents="box-none"
+                style={{
+                  maxWidth: 72,
+                  maxHeight: '100%',
+                  paddingVertical: 8,
+                  paddingHorizontal: 6,
+                  borderRadius: 28,
+                  backgroundColor: 'rgba(0,0,0,0.45)',
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: 'rgba(255,255,255,0.2)',
+                }}
+              >
+                <ScrollView
+                  style={{ maxHeight: '100%' }}
+                  contentContainerStyle={{
+                    alignItems: 'flex-end',
+                    gap: 11,
+                    paddingBottom: 4,
+                    flexGrow: 1,
+                    justifyContent: 'center',
+                  }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  bounces={false}
+                >
+            {overlays.length > 0 ? (
+              <EditorGlassButton onPress={undoLastOverlay} accessibilityLabel="Undo last">
+                <Ionicons name="arrow-undo" size={20} color="#fff" />
+              </EditorGlassButton>
+            ) : null}
+
+            <EditorGlassButton
+              onPress={() => setTextModal({ open: true, editing: null })}
+              accessibilityLabel="Add text"
+            >
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 17, letterSpacing: -0.5 }}>Aa</Text>
+            </EditorGlassButton>
+
+            <EditorGlassButton onPress={() => setEmojiOpen(true)} accessibilityLabel="Add emoji">
+              <Text style={{ fontSize: 22 }}>😊</Text>
+            </EditorGlassButton>
+
+            <EditorGlassButton onPress={openMentionPicker} accessibilityLabel="Mention someone">
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 18 }}>@</Text>
+            </EditorGlassButton>
+
+            <EditorGlassButton onPress={() => setDrawingMode(true)} accessibilityLabel="Draw">
+              <Ionicons name="pencil" size={20} color="#fff" />
+            </EditorGlassButton>
+
+            <EditorGlassButton
+              onPress={() => setMusicOpen(true)}
+              accessibilityLabel="Add music"
+              active={hasMusicOverlay}
+              activeTint="#1DB954"
+            >
+              <Ionicons
+                name="musical-notes"
+                size={20}
+                color={hasMusicOverlay ? '#000' : '#fff'}
+              />
+            </EditorGlassButton>
+                </ScrollView>
+              </View>
+            </View>
+
+            {/* Bottom: audience + Share — LTR row so Share stays visible in RTL locales */}
+            <View
+              pointerEvents="box-none"
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                paddingBottom: Math.max(insets.bottom, 12) + 10,
+                paddingTop: 14,
+                paddingHorizontal: 14,
+                backgroundColor: 'rgba(8,8,10,0.94)',
+                borderTopLeftRadius: 18,
+                borderTopRightRadius: 18,
+                borderTopWidth: 2,
+                borderColor: 'rgba(255,200,1,0.35)',
+              }}
+            >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', direction: 'ltr' }}>
             <Pressable
               onPress={() => setAudience((a) => a === 'public' ? 'close_friends' : 'public')}
               onLongPress={() => router.push('/settings/close-friends')}
               delayLongPress={350}
               disabled={uploading}
               style={({ pressed }) => ({
+                flexShrink: 1,
+                maxWidth: '56%',
                 flexDirection: 'row', alignItems: 'center', gap: 8,
-                paddingHorizontal: 14, paddingVertical: 10,
+                paddingHorizontal: 14, paddingVertical: 12,
                 borderRadius: 999,
                 backgroundColor: audience === 'close_friends'
-                  ? 'rgba(34,197,94,0.92)'
-                  : 'rgba(0,0,0,0.55)',
-                opacity: pressed ? 0.85 : 1,
+                  ? 'rgba(34,197,94,0.95)'
+                  : 'rgba(255,255,255,0.14)',
+                opacity: pressed ? 0.88 : 1,
+                borderWidth: 1.5,
+                borderColor: audience === 'close_friends' ? '#22c55e' : 'rgba(255,255,255,0.22)',
               })}
             >
               <Ionicons
                 name={audience === 'close_friends' ? 'star' : 'globe-outline'}
-                size={14}
+                size={16}
                 color="#fff"
               />
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                {audience === 'close_friends' ? 'Close Friends' : 'Everyone'}
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }} numberOfLines={1}>
+                {audience === 'close_friends' ? 'Close friends' : 'Everyone'}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.75)" />
+            </Pressable>
+
+            <Pressable
+              onPress={submit}
+              disabled={uploading}
+              style={({ pressed }) => ({
+                flexShrink: 0,
+                minWidth: 136,
+                paddingVertical: 14,
+                paddingHorizontal: 20,
+                borderRadius: 999,
+                backgroundColor: '#ffc801',
+                opacity: pressed || uploading ? 0.82 : 1,
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                shadowColor: '#000',
+                shadowOpacity: 0.35,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 3 },
+                elevation: 10,
+                marginLeft: 10,
+              })}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Ionicons name="paper-plane" size={20} color="#fff" />
+              )}
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16 }} numberOfLines={1}>
+                {uploading ? 'Posting…' : 'Share'}
               </Text>
             </Pressable>
-            {audience === 'close_friends' ? (
-              <Pressable
-                onPress={() => router.push('/settings/close-friends')}
-                hitSlop={6}
-              >
-                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, textDecorationLine: 'underline' }}>
-                  Edit list
-                </Text>
-              </Pressable>
-            ) : null}
           </View>
-
-          <Pressable
-            onPress={submit}
-            disabled={uploading}
-            style={({ pressed }) => ({
-              paddingHorizontal: 22, paddingVertical: 14,
-              borderRadius: 999,
-              backgroundColor: '#ffc801',
-              opacity: pressed || uploading ? 0.7 : 1,
-              flexDirection: 'row', alignItems: 'center', gap: 8,
-              shadowColor: '#000', shadowOpacity: 0.35,
-              shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
-              elevation: 10,
-            })}
-          >
-            {uploading ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <Ionicons name="paper-plane" size={16} color="#000" />
-            )}
-            <Text style={{ color: '#000', fontWeight: '800', letterSpacing: 0.3 }}>
-              {uploading ? 'Posting…' : 'Share to story'}
-            </Text>
-          </Pressable>
-        </View>
+          {audience === 'close_friends' ? (
+            <Pressable
+              onPress={() => router.push('/settings/close-friends')}
+              hitSlop={6}
+              style={{ marginTop: 10, alignSelf: 'flex-start' }}
+            >
+              <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }}>
+                Edit close friends list
+              </Text>
+            </Pressable>
+          ) : null}
+            </View>
+          </View>
         ) : null}
 
         {/* Text input modal */}
@@ -575,7 +668,7 @@ export default function CreateStoryScreen() {
         {/* User picker for @mentions */}
         <UserPickerSheet
           visible={mentionOpen}
-          onClose={() => setMentionOpen(false)}
+          onClose={() => { setMentionOpen(false); setMentionEditingId(null); }}
           onPick={addMentionOverlay}
         />
 
@@ -664,11 +757,34 @@ export default function CreateStoryScreen() {
   );
 }
 
-const topRoundBtn = {
-  width: 38,
-  height: 38,
-  borderRadius: 19,
-  backgroundColor: 'rgba(0,0,0,0.45)',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
+/** Circular control for the story editor chrome (solid fill — BlurView is unreliable on some Android GPUs). */
+function EditorGlassButton({ children, onPress, disabled, active, activeTint, accessibilityLabel }) {
+  const tint = activeTint || '#ffc801';
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={8}
+      style={({ pressed }) => ({
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: disabled ? 0.45 : (pressed ? 0.88 : 1),
+        transform: [{ scale: pressed ? 0.94 : 1 }],
+        borderWidth: active ? 2.5 : 2,
+        borderColor: active ? tint : 'rgba(255,255,255,0.88)',
+        backgroundColor: active ? tint : 'rgba(24,24,28,0.96)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.5,
+        shadowRadius: 3,
+        elevation: 14,
+      })}
+    >
+      {children}
+    </Pressable>
+  );
+}

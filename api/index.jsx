@@ -391,7 +391,7 @@ const removeCloseFriend = async (friendId, token) => {
 // ─── Generic user search (used for @mentions in stories) ──────────────────
 const searchUsers = async (query, token) => {
     const q = encodeURIComponent(String(query || '').trim());
-    const response = await get(`search?type=students&q=${q}`, token);
+    const response = await get(`mobile/search?type=students&q=${q}`, token);
     return response?.data;
 };
 
