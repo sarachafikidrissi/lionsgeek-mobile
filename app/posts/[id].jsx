@@ -9,7 +9,7 @@ import FeedItem from '@/components/feed/FeedItem';
 import Skeleton from '@/components/ui/Skeleton';
 
 export default function PostDetailsScreen() {
-  const { id, reportId } = useLocalSearchParams();
+  const { id, reportId, commentId } = useLocalSearchParams();
   const postId = useMemo(() => {
     const raw = Array.isArray(id) ? id[0] : id;
     const parsed = Number(raw);
@@ -20,6 +20,11 @@ export default function PostDetailsScreen() {
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? parsed : null;
   }, [reportId]);
+  const focusCommentId = useMemo(() => {
+    const raw = Array.isArray(commentId) ? commentId[0] : commentId;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [commentId]);
 
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
@@ -172,7 +177,7 @@ export default function PostDetailsScreen() {
             <Text style={{ color: text, fontWeight: '800' }}>Post not found.</Text>
           </View>
         ) : (
-          <FeedItem item={post} />
+          <FeedItem item={post} initialFocusCommentId={focusCommentId} />
         )}
       </ScrollView>
     </View>

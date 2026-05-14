@@ -99,7 +99,18 @@ function RootLayoutNav() {
         name="customization"
         options={stackHeaderOptions('Customize', stackBg, colorScheme)}
       />
-      <Stack.Screen name="activity" options={stackHeaderOptions('Activity', stackBg, colorScheme)} />
+      <Stack.Screen
+        name="activity"
+        options={stackHeaderOptions('Recent activity', stackBg, colorScheme)}
+      />
+      <Stack.Screen
+        name="attendance-history"
+        options={{
+          ...stackHeaderOptions('My Attendance', stackBg, colorScheme),
+          gestureEnabled: true,
+          animation: 'slide_from_right' as const,
+        }}
+      />
       <Stack.Screen
         name="terms"
         options={stackHeaderOptions('Terms & conditions', stackBg, colorScheme)}

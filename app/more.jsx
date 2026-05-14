@@ -287,7 +287,7 @@ export default function More() {
           <SettingRow
             icon="time-outline"
             label="Recent activity"
-            sublabel="Check-ins, mentions & milestones"
+            sublabel="Likes, comments, saves, bookings & follows — full trail (no chat)"
             onPress={() => router.push('/activity')}
             right={chevron}
           />
@@ -370,8 +370,8 @@ export default function More() {
           <SettingRow
             icon="clipboard-outline"
             label="Attendance history"
-            sublabel="Review past check-ins"
-            onPress={() => router.push('/(tabs)/training/attendance')}
+            sublabel="M · L · E by day for your training"
+            onPress={() => router.push('/attendance-history')}
             right={chevron}
           />
           <RowDivider />
