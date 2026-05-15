@@ -41,6 +41,8 @@ export default function ViewerListSheet({ visible, storyId, onClose, onPause, on
   const [viewers, setViewers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [reactionsCount, setReactionsCount] = useState(0);
+  const [captureScreenshots, setCaptureScreenshots] = useState(0);
+  const [captureRecordings, setCaptureRecordings] = useState(0);
 
   // Open/close animation
   useEffect(() => {
@@ -63,6 +65,8 @@ export default function ViewerListSheet({ visible, storyId, onClose, onPause, on
         if (cancelled) return;
         setViewers(Array.isArray(data?.viewers) ? data.viewers : []);
         setReactionsCount(Number(data?.reactions_count || 0));
+        setCaptureScreenshots(Number(data?.capture_screenshots ?? 0));
+        setCaptureRecordings(Number(data?.capture_recordings ?? 0));
       } catch (e) {
         if (cancelled) return;
         setViewers([]);
@@ -151,6 +155,14 @@ export default function ViewerListSheet({ visible, storyId, onClose, onPause, on
                   <Ionicons name="heart-outline" size={16} color="#fff" />
                   <Text style={{ color: '#fff', fontWeight: '800' }}>{reactionsCount}</Text>
                 </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="camera-outline" size={16} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>{captureScreenshots}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="videocam-outline" size={16} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>{captureRecordings}</Text>
+                </View>
               </View>
               <Pressable onPress={dismiss} hitSlop={10}>
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.8)" />
@@ -213,6 +225,28 @@ function ViewerRow({ viewer }) {
         <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 2 }}>
           {timeAgo(viewer.viewed_at)}
         </Text>
+        {(Number(viewer.capture_screenshots) > 0 || Number(viewer.capture_recordings) > 0) ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
+            {Number(viewer.capture_screenshots) > 0 ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="camera-outline" size={13} color="#ffc801" />
+                <Text style={{ color: '#ffc801', fontSize: 11, fontWeight: '700' }}>
+                  Screenshot
+                  {Number(viewer.capture_screenshots) > 1 ? ` ×${viewer.capture_screenshots}` : ''}
+                </Text>
+              </View>
+            ) : null}
+            {Number(viewer.capture_recordings) > 0 ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="videocam-outline" size={13} color="#ffc801" />
+                <Text style={{ color: '#ffc801', fontSize: 11, fontWeight: '700' }}>
+                  Screen record
+                  {Number(viewer.capture_recordings) > 1 ? ` ×${viewer.capture_recordings}` : ''}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
       </View>
       {viewer.reaction ? (
         <Text style={{ fontSize: 22, marginLeft: 8 }}>{viewer.reaction}</Text>

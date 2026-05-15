@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import StoryReplyInput from '@/components/stories/StoryReplyInput';
 import SaveToHighlightSheet from '@/components/stories/SaveToHighlightSheet';
 import OverlayRenderer from '@/components/stories/OverlayRenderer';
 import useStoryMusic from '@/components/stories/useStoryMusic';
+import { useStoryCaptureReport } from '@/components/stories/useStoryCaptureReport';
 
 const { width: WINDOW_W, height: WINDOW_H } = Dimensions.get('window');
 const TOP_INSET = (Platform.OS === 'ios' ? 54 : RNStatusBar.currentHeight ?? 24) + 6;
@@ -79,6 +80,7 @@ export default function StoryViewerScreen() {
   // user taps an emoji; the server response then confirms / corrects.
   const [reactionOverride, setReactionOverride] = useState({}); // { [storyId]: emoji }
   const [reactionCountOverride, setReactionCountOverride] = useState({}); // { [storyId]: count }
+  const [mentionRepostBusy, setMentionRepostBusy] = useState(false);
 
   const videoRef = useRef(null);
   const progress = useSharedValue(0); // 0..1 for the current story
@@ -98,6 +100,17 @@ export default function StoryViewerScreen() {
   // Play the story's music sticker (if any). Looped to its trim window and
   // tied to the story's pause state. Hook handles null overlays gracefully.
   useStoryMusic(musicOverlay, { isPaused: musicPaused });
+
+  const onCaptureReport = useCallback((storyId, kind, tok) => {
+    API.reportStoryCaptureEvent(storyId, kind, tok).catch(() => {});
+  }, []);
+
+  useStoryCaptureReport({
+    storyId: currentStory?.id ?? null,
+    token,
+    enabled: !!currentStory && !currentStory.is_mine,
+    onReport: onCaptureReport,
+  });
 
   // ────────────────────────────────────────────────────────────────────
   // Load stories
@@ -329,6 +342,25 @@ export default function StoryViewerScreen() {
     setReplying(false);
     resume();
   }, [resume]);
+
+  const handleMentionRepost = useCallback(async () => {
+    if (!currentStory || !token || mentionRepostBusy || currentStory.is_mine) return;
+    if (!currentStory.can_repost_as_mention) return;
+    setMentionRepostBusy(true);
+    pause();
+    try {
+      await API.repostStoryFromMention(currentStory.id, token);
+      const data = await API.listStories(token);
+      const g = Array.isArray(data?.groups) ? data.groups : [];
+      setGroups(g);
+      Alert.alert('Added to your story', 'It will appear on your profile like any other story.');
+    } catch (e) {
+      Alert.alert('Could not add', e?.message || 'Please try again.');
+    } finally {
+      setMentionRepostBusy(false);
+      resume();
+    }
+  }, [currentStory, token, mentionRepostBusy, pause, resume]);
 
   // ────────────────────────────────────────────────────────────────────
   // Delete (own stories only)
@@ -650,6 +682,33 @@ export default function StoryViewerScreen() {
                 paddingBottom: Platform.OS === 'ios' ? 28 : 18,
               }}
             >
+              {currentStory.can_repost_as_mention ? (
+                <View style={{ alignItems: 'center', marginBottom: 10, paddingHorizontal: 20 }}>
+                  <Pressable
+                    onPress={handleMentionRepost}
+                    disabled={mentionRepostBusy}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 999,
+                      backgroundColor: pressed ? 'rgba(255,200,1,0.95)' : '#ffc801',
+                      opacity: mentionRepostBusy ? 0.65 : 1,
+                    })}
+                  >
+                    {mentionRepostBusy ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <Ionicons name="repeat" size={18} color="#000" />
+                    )}
+                    <Text style={{ color: '#000', fontWeight: '800', fontSize: 14 }}>
+                      Add to your story
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
               <EmojiReactionRow
                 currentReaction={
                   reactionOverride[currentStory.id] !== undefined

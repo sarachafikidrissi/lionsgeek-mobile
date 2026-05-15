@@ -330,6 +330,16 @@ const replyToStory = async (storyId, message, token) => {
     return response?.data;
 };
 
+const repostStoryFromMention = async (storyId, token) => {
+    const response = await post(`mobile/stories/${storyId}/mention-repost`, {}, token);
+    return response?.data;
+};
+
+const reportStoryCaptureEvent = async (storyId, kind, token) => {
+    const response = await post(`mobile/stories/${storyId}/capture-event`, { kind }, token);
+    return response?.data;
+};
+
 // ─── Highlights ───────────────────────────────────────────────────────────
 const listHighlights = async (userId, token) => {
     const response = await get(`mobile/users/${userId}/highlights`, token);
@@ -428,6 +438,8 @@ export default {
     reactToStory,
     removeStoryReaction,
     replyToStory,
+    repostStoryFromMention,
+    reportStoryCaptureEvent,
     listHighlights,
     getHighlight,
     createHighlight,

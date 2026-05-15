@@ -259,7 +259,7 @@ export default function CreateStoryScreen() {
     if (editId) {
       setOverlays((prev) => prev.map((o) => (
         o.id === editId && o.type === 'mention'
-          ? { ...o, user_id: user.id, username: displayName }
+          ? { ...o, user_id: user.id, username: displayName, hidden: o.hidden !== false }
           : o
       )));
       setSelectedOverlayId(editId);
@@ -277,6 +277,7 @@ export default function CreateStoryScreen() {
         color: '#ffffff',
         has_bg: false,
         bg_color: null,
+        hidden: true,
       };
       setOverlays((prev) => [...prev, o]);
       setSelectedOverlayId(newId);

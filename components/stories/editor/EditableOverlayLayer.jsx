@@ -451,6 +451,25 @@ function MusicEditorView({ overlay, isSelected }) {
 }
 
 function MentionEditorView({ overlay, isSelected }) {
+  if (overlay.hidden) {
+    return (
+      <View
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: 'rgba(0,0,0,0.55)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: isSelected ? 2.5 : 1.5,
+          borderColor: isSelected ? 'rgba(255,200,1,0.95)' : 'rgba(255,255,255,0.35)',
+          transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
+        }}
+      >
+        <Text style={{ color: '#ffc801', fontWeight: '900', fontSize: 16 }}>@</Text>
+      </View>
+    );
+  }
   const baseColor = overlay.color || '#ffffff';
   const hasBg = !!overlay.has_bg;
   const bgColor = overlay.bg_color || '#000000';

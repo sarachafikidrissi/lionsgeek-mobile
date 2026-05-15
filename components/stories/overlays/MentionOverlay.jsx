@@ -12,6 +12,8 @@ import { View, Text, Pressable } from 'react-native';
  */
 export default function MentionOverlay({ overlay, containerSize, selected = false, onPress }) {
   if (!overlay || !containerSize) return null;
+  /** Tag is stored for repost rights / server; @ text is hidden on the canvas. */
+  if (overlay.hidden) return null;
   const cx = (overlay.x ?? 0.5) * containerSize.width;
   const cy = (overlay.y ?? 0.5) * containerSize.height;
   const scale = overlay.scale ?? 1;
