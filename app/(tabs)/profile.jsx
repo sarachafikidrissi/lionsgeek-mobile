@@ -30,6 +30,7 @@ import Skeleton from '@/components/ui/Skeleton';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import ExperienceFormModal from '@/components/profile/ExperienceFormModal';
 import EducationFormModal from '@/components/profile/EducationFormModal';
+import HighlightsRow from '@/components/stories/HighlightsRow';
 import {
   resolveAvatarUrl,
   resolvePostMediaUrl,
@@ -2189,6 +2190,16 @@ export default function ProfileScreen() {
             </View>
           </View>
         </Rolegard>
+
+        {/* ─── Story Highlights ─── */}
+        {profile?.id ? (
+          <HighlightsRow
+            userId={profile.id}
+            isOwnProfile={isOwnProfile}
+            isDark={isDark}
+            refreshKey={refreshing ? Date.now() : 0}
+          />
+        ) : null}
 
         {/* ─── Profile Tabs ─── */}
         <ProfileTabBar activeTab={activeTab} onTabChange={setActiveTab} isDark={isDark} />
