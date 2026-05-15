@@ -3,7 +3,24 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { resolveAvatarUrl } from '@/components/helpers/helpers';
 
-export default function StoryItem({ user, isOwn = false, onPress }) {
+/**
+ * Avatar tile for a single user's story group.
+ *
+ * Props:
+ *   user        – { id, name, avatar }
+ *   isOwn       – render the "+" badge and "Your story" label
+ *   hasStories  – the user has at least one active story (controls ring presence)
+ *   hasUnseen   – at least one of their stories has NOT been viewed by the auth user
+ *                  -> gold ring; otherwise grey ring
+ *   onPress     – tile tapped
+ */
+export default function StoryItem({
+  user,
+  isOwn = false,
+  hasStories = true,
+  hasUnseen = true,
+  onPress,
+}) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -11,17 +28,22 @@ export default function StoryItem({ user, isOwn = false, onPress }) {
   const displayName = isOwn ? 'Your story' : (user?.name || 'User');
   const initial = (user?.name || 'U').charAt(0).toUpperCase();
 
+  // Ring colour: gold if unseen, grey if seen, transparent if no stories at all
+  // (the "Your story" button when user has not posted anything).
+  let ringColor = 'transparent';
+  if (hasStories) {
+    ringColor = hasUnseen ? '#ffc801' : (isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)');
+  }
+
   return (
     <Pressable onPress={onPress} className="items-center active:opacity-70" style={{ width: 76, marginRight: 12 }}>
-      {/* Instagram-style gradient ring: yellow/gold */}
       <View
         style={{
           width: 72, height: 72, borderRadius: 36,
           padding: 2.5,
-          // Gold ring for own story; gradient-like for others
-          backgroundColor: isOwn ? '#ffc801' : 'transparent',
-          borderWidth: isOwn ? 0 : 2.5,
-          borderColor: isOwn ? 'transparent' : '#ffc801',
+          backgroundColor: 'transparent',
+          borderWidth: hasStories ? 2.5 : 0,
+          borderColor: ringColor,
         }}
       >
         {/* White gap ring */}
@@ -51,7 +73,7 @@ export default function StoryItem({ user, isOwn = false, onPress }) {
         </View>
       </View>
 
-      {/* "+" badge for own story */}
+      {/* "+" badge for own story. Always shown so the user can quickly add. */}
       {isOwn ? (
         <View
           style={{

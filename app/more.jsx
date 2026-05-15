@@ -389,17 +389,25 @@ export default function More() {
         <SettingsCard>
           <SettingRow
             icon="calendar-outline"
-            label="Reservations"
-            sublabel="Coworking & spaces"
-            onPress={() => router.push('/(tabs)/reservations')}
+            label="Studios history"
+            sublabel="Only studio reservations you booked"
+            onPress={() => router.push('/reservation-history-studio')}
             right={chevron}
           />
           <RowDivider />
           <SettingRow
             icon="desktop-outline"
-            label="Reserve coworking"
-            sublabel="Pick a desk or room"
-            onPress={() => router.push('/(tabs)/reservations/reserveCowork')}
+            label="Coworking history"
+            sublabel="Desks & cowork slots you’ve booked"
+            onPress={() => router.push('/reservation-history-cowork')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="add-circle-outline"
+            label="Book a space"
+            sublabel="Studios, calendar & new cowork reservation"
+            onPress={() => router.push('/(tabs)/reservations')}
             right={chevron}
           />
         </SettingsCard>
@@ -417,9 +425,9 @@ export default function More() {
           <RowDivider />
           <SettingRow
             icon="notifications-outline"
-            label="Notifications"
-            sublabel="Alerts & mentions"
-            onPress={() => router.push('/(tabs)/notifications')}
+            label="Notification preferences"
+            sublabel="Inbox categories, sounds & system settings"
+            onPress={() => router.push('/notification-preferences')}
             right={
               <View className="flex-row items-center gap-2">
                 <NotificationBadge count={unreadNotifications} />
@@ -441,26 +449,17 @@ export default function More() {
           />
           <RowDivider />
           <SettingRow
-            icon="shield-checkmark-outline"
-            label="Password & security"
-            sublabel="Recovery email & sign-in hygiene"
-            onPress={() => router.push('/auth/forgot-password')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
             icon="key-outline"
             label="Reset password"
-            sublabel="Email magic link to choose a new password"
-            onPress={() => router.push('/auth/forgot-password')}
+            sublabel="Current password required · then choose a new one"
+            onPress={() => router.push('/reset-password')}
             right={chevron}
-            pill={<ProPill />}
           />
           <RowDivider />
           <SettingRow
             icon="mail-unread-outline"
             label="Email & recovery"
-            sublabel="Same flow — verify your inbox access"
+            sublabel="Forgot password · we will email you a link"
             onPress={() => router.push('/auth/forgot-password')}
             right={chevron}
           />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { useAppContext } from '@/context';
-import StoryItem from '@/components/feed/StoryItem';
+import StoriesTray from '@/components/feed/StoriesTray';
 import FeedItem from '@/components/feed/FeedItem';
 import CreatePost from '@/components/feed/CreatePost';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -220,33 +220,9 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffc801" />
         }
       >
-        {/* Stories card */}
-        <View
-          style={{
-            backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
-            marginBottom: 8,
-            paddingHorizontal: 16,
-            paddingTop: 12,
-            paddingBottom: 14,
-          }}
-        >
-          <View className="flex-row items-center justify-between mb-3">
-            <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 0.8, color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', textTransform: 'uppercase' }}>
-              Stories
-            </Text>
-            <Ionicons name="add-circle-outline" size={22} color="#ffc801" />
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingRight: 8 }}
-          >
-            <StoryItem user={user} isOwn={true} />
-            <StoryItem user={{ name: 'Hamza', avatar: 'https://via.placeholder.com/60', image: null }} />
-            <StoryItem user={{ name: 'Nabil', avatar: 'https://via.placeholder.com/60', image: null }} />
-            <StoryItem user={{ name: 'John', avatar: 'https://via.placeholder.com/60', image: null }} />
-          </ScrollView>
-        </View>
+        {/* Stories tray (real data from /api/mobile/stories).
+            We re-fetch on every pull-to-refresh by bumping refreshKey. */}
+        <StoriesTray refreshKey={refreshing ? Date.now() : 0} />
 
         {/* Create Post card */}
         <View

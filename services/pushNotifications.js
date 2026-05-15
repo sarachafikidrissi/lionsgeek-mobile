@@ -1,16 +1,86 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import * as TaskManager from 'expo-task-manager';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import API from '@/api';
+import CallKeep from './callKeep';
 
-// Configure notification behavior
+const IS_EXPO_GO = Constants.appOwnership === 'expo';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Foreground handler.
+// For "incoming_call" pushes we suppress the visual banner / sound on
+// foreground because CallKeep (or the in-app ringer) will already be showing
+// the real call UI – we just consume the data payload.
+// ─────────────────────────────────────────────────────────────────────────────
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const type = notification?.request?.content?.data?.type;
+    if (type === 'incoming_call') {
+      // Try to show CallKeep immediately (Android: ConnectionService full-screen
+      // ring; iOS: CallKit). If CallKeep fails for any reason we still let the
+      // notification be shown so the user is at least alerted.
+      try {
+        await handleIncomingCallPush(notification?.request?.content?.data);
+      } catch (e) {
+        console.warn('[push] foreground incoming_call → CallKeep failed', e?.message);
+      }
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Background task: when a push arrives while the app is in the background or
+// killed (Android only – iOS does not run JS for non-VoIP pushes), this task
+// fires. We use it to immediately summon the native incoming-call UI via
+// CallKeep so the phone rings like a real call.
+// ─────────────────────────────────────────────────────────────────────────────
+export const BACKGROUND_NOTIFICATION_TASK = 'lionsgeek-incoming-call-task';
+
+// Background notification tasks are not supported in Expo Go – defining them
+// there logs a warning every reload and registration always fails.
+if (!IS_EXPO_GO) {
+  TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
+    try {
+      if (error) {
+        console.warn('[push:bg] task error', error);
+        return;
+      }
+      const payload =
+        data?.notification?.data ||
+        data?.data ||
+        data?.notification?.request?.content?.data ||
+        data;
+      if (payload?.type === 'incoming_call') {
+        await handleIncomingCallPush(payload);
+      }
+    } catch (e) {
+      console.warn('[push:bg] task threw', e?.message);
+    }
+  });
+}
+
+async function handleIncomingCallPush(payload) {
+  if (!payload || payload.type !== 'incoming_call') return;
+  const callId = Number(payload.call_id);
+  if (!callId) return;
+  await CallKeep.showIncomingCall({
+    callId,
+    callerName: payload.caller_name || 'Incoming call',
+    callerHandle: String(payload.caller_id ?? payload.caller_name ?? 'unknown'),
+  });
+}
 
 /**
  * Request notification permissions and get Expo push token
@@ -50,13 +120,45 @@ export async function registerForPushNotificationsAsync() {
     console.log('✅ Expo push token obtained:', token.substring(0, 20) + '...');
     console.log('📱 Full token (for debugging):', token);
 
-    // Configure Android channel
+    // Register the background notification task so incoming_call pushes can
+    // ring the phone via CallKeep even when the app is killed/background.
+    // Skipped in Expo Go (background tasks are not supported there).
+    if (!IS_EXPO_GO) {
+      try {
+        const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_NOTIFICATION_TASK);
+        if (!isRegistered) {
+          await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+          console.log('✅ Background incoming-call task registered');
+        }
+      } catch (e) {
+        console.warn('Could not register background notification task:', e?.message);
+      }
+    }
+
+    // Configure Android channels.
     if (Platform.OS === 'android') {
+      // Default channel for chat / generic notifications.
       await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7C',
+      });
+      // High-priority channel for incoming voice calls so the device rings
+      // loudly and persistently like a real phone call, even from the
+      // background / locked screen.
+      await Notifications.setNotificationChannelAsync('incoming-calls', {
+        name: 'Incoming voice calls',
+        description: 'Persistent ringing notifications for incoming calls.',
+        importance: Notifications.AndroidImportance.MAX,
+        // Long buzz-pause-buzz pattern that mimics a phone ring.
+        vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
+        lightColor: '#22c55e',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: false,
       });
     }
 

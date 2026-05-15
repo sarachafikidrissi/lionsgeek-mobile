@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity, RefreshControl } from 'react-native';
 import { useAppContext } from '@/context';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -8,6 +8,8 @@ import { router } from 'expo-router';
 import API from '@/api';
 import { formatDistanceToNow } from 'date-fns';
 import Skeleton from '@/components/ui/Skeleton';
+import useNotificationPreferences from '@/hooks/useNotificationPreferences';
+import { isNotificationTypeEnabledInPrefs } from '@/constants/notificationPreferences';
 
 let Ably = null;
 try {
@@ -20,6 +22,7 @@ export default function NotificationsScreen() {
   const { token } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { prefs, ready: prefsReady } = useNotificationPreferences();
   const [refreshing, setRefreshing] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -313,6 +316,11 @@ export default function NotificationsScreen() {
   ];
   void _fallbackNotifications;
 
+  const visibleNotifications = useMemo(() => {
+    if (!prefsReady) return notifications;
+    return notifications.filter((n) => isNotificationTypeEnabledInPrefs(n.type, prefs));
+  }, [notifications, prefs, prefsReady]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchNotifications();
@@ -480,7 +488,7 @@ export default function NotificationsScreen() {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = visibleNotifications.filter((n) => !n.read).length;
 
   return (
     <AppLayout showNavbar={false}>
@@ -500,6 +508,12 @@ export default function NotificationsScreen() {
               </View>
             </View>
             <View className="flex-row items-center gap-2">
+              <TouchableOpacity
+                onPress={() => router.push('/notification-preferences')}
+                className="rounded-full bg-black/5 dark:bg-white/10 px-3 py-2"
+              >
+                <Ionicons name="settings-outline" size={18} color={isDark ? '#fff' : '#000'} />
+              </TouchableOpacity>
               {/* Test Push Button */}
               <TouchableOpacity 
                 onPress={testPushNotification}
@@ -566,13 +580,30 @@ export default function NotificationsScreen() {
                   You are all caught up!
                 </Text>
               </View>
+            ) : visibleNotifications.length === 0 ? (
+              <View className="py-14 items-center px-4">
+                <Ionicons name="filter-outline" size={56} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+                <Text className="text-center text-black dark:text-white mt-4 text-base font-semibold">
+                  Nothing to show here
+                </Text>
+                <Text className="text-center text-black/55 dark:text-white/55 mt-2 text-sm leading-5">
+                  Every notification is hidden by your preferences. Turn categories back on or open settings to
+                  change what appears in this inbox.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/notification-preferences')}
+                  className="mt-6 rounded-full bg-alpha/20 dark:bg-alpha/30 px-5 py-3"
+                >
+                  <Text className="text-alpha text-sm font-bold">Notification preferences</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               <>
                 {/* Today Section (Unread) */}
-                {notifications.filter(n => !n.read).length > 0 && (
+                {visibleNotifications.filter((n) => !n.read).length > 0 && (
                   <View className="mb-4">
                     <Text className="text-sm font-bold text-black/50 dark:text-white/50 uppercase mb-3">Today</Text>
-                    {notifications.filter(n => !n.read).map((notification) => (
+                    {visibleNotifications.filter((n) => !n.read).map((notification) => (
                     <TouchableOpacity
                       key={notification.id}
                       onPress={() => handleNotificationPress(notification)}
@@ -635,10 +666,10 @@ export default function NotificationsScreen() {
                 )}
 
                 {/* Earlier Section (Read) */}
-                {notifications.filter(n => n.read).length > 0 && (
+                {visibleNotifications.filter((n) => n.read).length > 0 && (
                   <View className="mt-4">
                     <Text className="text-sm font-bold text-black/50 dark:text-white/50 uppercase mb-3">Earlier</Text>
-                    {notifications.filter(n => n.read).map((notification) => (
+                    {visibleNotifications.filter((n) => n.read).map((notification) => (
                       <TouchableOpacity
                         key={notification.id}
                         onPress={() => handleNotificationPress(notification)}
@@ -688,15 +719,6 @@ export default function NotificationsScreen() {
                       </View>
                     </TouchableOpacity>
                   ))}
-                  </View>
-                )}
-                
-                {/* Show message if all notifications are read */}
-                {notifications.length > 0 && notifications.filter(n => !n.read).length === 0 && notifications.filter(n => n.read).length === 0 && (
-                  <View className="py-8 items-center">
-                    <Text className="text-center text-black/60 dark:text-white/60 text-sm">
-                      All notifications have been processed
-                    </Text>
                   </View>
                 )}
               </>

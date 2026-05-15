@@ -10,7 +10,9 @@ import "../index.css";
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AppProvider } from '@/context';
+import { CallProvider } from '@/context/CallContext';
 import { setupNotificationListeners, removeNotificationListeners } from '@/services/pushNotifications';
+import { setupCallKeep } from '@/services/callKeep';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/Colors';
 import { Home as LogoIcon } from '@/components/logo';
@@ -45,6 +47,11 @@ function RootLayoutNav() {
       return;
     }
 
+    // Initialise CallKeep (CallKit on iOS / ConnectionService on Android) so
+    // that incoming calls can ring the phone like a real call, even from a
+    // killed app state.
+    setupCallKeep().catch(() => {});
+
     // Setup notification listeners when app mounts
     setupNotificationListeners()
       .then((listeners) => {
@@ -74,9 +81,64 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding/index" options={{ headerShown: false }} />
       <Stack.Screen name="auth/login" options={{ headerShown: false }} />
       <Stack.Screen name="auth/forgot-password" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="reset-password"
+        options={stackHeaderOptions('Reset password', stackBg, colorScheme)}
+      />
+      <Stack.Screen
+        name="notification-preferences"
+        options={stackHeaderOptions('Notification preferences', stackBg, colorScheme)}
+      />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="chat" options={{ headerShown: false }} />
       <Stack.Screen name="posts/edit/[id]" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="stories/create"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="stories/viewer"
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'fade',
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="stories/highlight/[id]"
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'fade',
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="settings/close-friends"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="call"
+        options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
+      />
+      <Stack.Screen
+        name="incoming-call"
+        options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
+      />
+      <Stack.Screen
+        name="outgoing-call"
+        options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
+      />
       <Stack.Screen name="more" options={stackHeaderOptions('More', stackBg, colorScheme)} />
       <Stack.Screen
         name="saved-posts"
@@ -110,6 +172,14 @@ function RootLayoutNav() {
           gestureEnabled: true,
           animation: 'slide_from_right' as const,
         }}
+      />
+      <Stack.Screen
+        name="reservation-history-studio"
+        options={stackHeaderOptions('Studios history', stackBg, colorScheme)}
+      />
+      <Stack.Screen
+        name="reservation-history-cowork"
+        options={stackHeaderOptions('Coworking history', stackBg, colorScheme)}
       />
       <Stack.Screen
         name="terms"
@@ -150,10 +220,12 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppProvider>
-        <ThemeProvider value={colorScheme == 'dark' ? DarkTheme : DefaultTheme}>
-          <RootLayoutNav />
-          <StatusBar style={colorScheme == 'dark' ? 'light' : 'dark'} />
-        </ThemeProvider>
+        <CallProvider>
+          <ThemeProvider value={colorScheme == 'dark' ? DarkTheme : DefaultTheme}>
+            <RootLayoutNav />
+            <StatusBar style={colorScheme == 'dark' ? 'light' : 'dark'} />
+          </ThemeProvider>
+        </CallProvider>
       </AppProvider>
     </GestureHandlerRootView>
   );
