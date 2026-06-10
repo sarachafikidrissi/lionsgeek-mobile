@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, RefreshControl } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
 import { userHasAdminRole } from '@/components/helpers/helpers';
@@ -24,6 +24,7 @@ export default function EventDetail() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const skipFocusRefresh = useRef(true);
 
   const fetchEvent = useCallback(
     async (isRefresh = false) => {
@@ -50,6 +51,17 @@ export default function EventDetail() {
   useEffect(() => {
     fetchEvent();
   }, [fetchEvent]);
+
+  // Refresh registrations when returning from the scanner (skip the first focus on open).
+  useFocusEffect(
+    useCallback(() => {
+      if (skipFocusRefresh.current) {
+        skipFocusRefresh.current = false;
+        return;
+      }
+      fetchEvent(true);
+    }, [fetchEvent])
+  );
 
   const scannable = event ? canScanEvent(event) : false;
   const title = getEventDisplayName(event?.name);

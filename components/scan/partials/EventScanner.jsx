@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, Pressable } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import Skeleton from '@/components/ui/Skeleton';
@@ -28,10 +28,36 @@ export default function EventScanner() {
     loadEvent();
   }, [eventId]);
 
-  const resetScan = () => {
+  const resetScan = useCallback(() => {
     setScanned(false);
     setProcessing(false);
     scanLockRef.current = false;
+  }, []);
+
+  // The scanner screen stays on the stack after a successful scan. Without this
+  // reset, scanned/processing stay true and the camera ignores further codes.
+  useFocusEffect(
+    useCallback(() => {
+      resetScan();
+    }, [resetScan])
+  );
+
+  const showResultAlert = (title, message, status) => {
+    const canContinue = status === 'success' || status === 'warning';
+
+    if (canContinue) {
+      Alert.alert(title, message, [
+        { text: 'Scan another', onPress: resetScan },
+        {
+          text: 'Done',
+          style: 'cancel',
+          onPress: () => router.replace(`/(tabs)/scan/${eventId}`),
+        },
+      ]);
+      return;
+    }
+
+    Alert.alert(title, message, [{ text: 'OK', onPress: resetScan }]);
   };
 
   const handleBarCodeScanned = async ({ data }) => {
@@ -77,23 +103,14 @@ export default function EventScanner() {
               ? 'Check-in failed'
               : 'Scan result';
 
-      Alert.alert(title, message, [
-        {
-          text: 'OK',
-          onPress: () => {
-            if (status === 'success' || status === 'warning') {
-              router.replace(`/(tabs)/scan/${eventId}`);
-            } else {
-              resetScan();
-            }
-          },
-        },
-      ]);
+      showResultAlert(title, message, status);
     } catch (error) {
       console.error('[SCAN] Validation error:', error);
       Alert.alert('Error', 'Failed to validate QR code. Please try again.', [
         { text: 'OK', onPress: resetScan },
       ]);
+    } finally {
+      setProcessing(false);
     }
   };
 

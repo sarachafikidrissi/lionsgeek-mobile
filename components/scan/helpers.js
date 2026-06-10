@@ -89,6 +89,29 @@ export function groupEventsByDay(events) {
   return { live, upcoming };
 }
 
+// Turns an events fetch failure into a specific, actionable message so the
+// real root cause (missing config vs. auth vs. network) is visible on screen.
+export function resolveEventsError(err) {
+  const status = err?.response?.status;
+  if (status === 401) {
+    return 'Invalid API key (401). Fix EXPO_PUBLIC_EVENTS_INFO_SECTION_KEY in .env, then restart: npx expo start -c';
+  }
+  if (status) {
+    return `Events server returned ${status}.`;
+  }
+
+  // No HTTP response at all: either the config was never bundled, or the
+  // device could not reach the server.
+  const message = String(err?.message || '');
+  if (message.includes('is not set')) {
+    return 'Events API not configured in the running build. Set EXPO_PUBLIC_EVENTS_INFO_SECTION_URL and _KEY in .env, then restart: npx expo start -c';
+  }
+  if (message.toLowerCase().includes('network')) {
+    return 'Network error reaching the events server. Check the device has internet and can reach lionsgeek.ma.';
+  }
+  return `Could not load events: ${message || 'unknown error'}`;
+}
+
 // Maps lionsgeek.ma validate-event-invitation messages to UI status.
 export function mapValidationMessage(message) {
   const normalized = String(message || '').toLowerCase();

@@ -1,10 +1,19 @@
 import axios from 'axios';
 
-const BASE_URL = (
+// Public LionsGeek site. Used directly when not proxying, and always used to
+// resolve cover-image URLs (which live on lionsgeek.ma).
+const PUBLIC_URL = (
   process.env.EXPO_PUBLIC_EVENTS_INFO_SECTION_URL ||
   process.env.EVENTS_INFO_SECTION_URL ||
   ''
 ).replace(/\/+$/, '');
+
+// Local app server (mylionsgeek) reachable on the LAN. Used as the proxy host
+// so a device without direct public-internet access can still load events.
+const APP_URL = (process.env.EXPO_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+
+const USE_PROXY =
+  String(process.env.EXPO_PUBLIC_EVENTS_INFO_USE_PROXY || '').toLowerCase() === 'true';
 
 const API_KEY = (
   process.env.EXPO_PUBLIC_EVENTS_INFO_SECTION_KEY ||
@@ -12,15 +21,25 @@ const API_KEY = (
   ''
 ).trim();
 
+// In proxy mode requests go to the local server under /api/events-info/*;
+// otherwise they hit lionsgeek.ma directly under /api/*.
+const REQUEST_BASE = USE_PROXY ? APP_URL : PUBLIC_URL;
+const API_PREFIX = USE_PROXY ? 'api/events-info' : 'api';
+
 const ensureConfig = () => {
-  if (!BASE_URL) {
+  if (USE_PROXY && !APP_URL) {
     throw new Error(
-      'EXPO_PUBLIC_EVENTS_INFO_SECTION_URL is not set. Add it to .env and restart Expo.'
+      'EXPO_PUBLIC_APP_URL is not set but proxy mode is on. Set it in .env and restart Expo with: npx expo start -c'
+    );
+  }
+  if (!USE_PROXY && !PUBLIC_URL) {
+    throw new Error(
+      'EXPO_PUBLIC_EVENTS_INFO_SECTION_URL is not set. Add it to .env and restart Expo with: npx expo start -c'
     );
   }
   if (!API_KEY) {
     throw new Error(
-      'EXPO_PUBLIC_EVENTS_INFO_SECTION_KEY is not set. Add it to .env and restart Expo.'
+      'EXPO_PUBLIC_EVENTS_INFO_SECTION_KEY is not set. Add it to .env and restart Expo with: npx expo start -c'
     );
   }
 };
@@ -31,20 +50,22 @@ const authHeaders = () => ({
   'Content-Type': 'application/json',
 });
 
+const buildUrl = (endpoint) => `${REQUEST_BASE}/${API_PREFIX}/${endpoint}`;
+
 const get = async (endpoint) => {
   ensureConfig();
-  const url = `${BASE_URL}/api/${endpoint}`;
-  return axios.get(url, { headers: authHeaders() });
+  return axios.get(buildUrl(endpoint), { headers: authHeaders() });
 };
 
 const put = async (endpoint, data) => {
   ensureConfig();
-  const url = `${BASE_URL}/api/${endpoint}`;
-  return axios.put(url, data, { headers: authHeaders() });
+  return axios.put(buildUrl(endpoint), data, { headers: authHeaders() });
 };
 
 export const EventsInfoAPI = {
-  BASE_URL,
+  // Cover images always resolve to the public site.
+  BASE_URL: PUBLIC_URL,
+  USE_PROXY,
   getEvents: () => get('events'),
   getEvent: (eventId) => get(`events/${eventId}`),
   validateEventInvitation: (payload) => put('validate-event-invitation', payload),

@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import Skeleton from '@/components/ui/Skeleton';
 import EventCard from '@/components/scan/partials/EventCard';
-import { filterActiveEvents, groupEventsByDay } from '@/components/scan/helpers';
+import { filterActiveEvents, groupEventsByDay, resolveEventsError } from '@/components/scan/helpers';
 
 export default function EventsTab() {
   const [events, setEvents] = useState([]);
@@ -24,11 +24,7 @@ export default function EventsTab() {
       setEvents(list);
     } catch (err) {
       console.error('[SCAN] Events fetch error:', err);
-      const message =
-        err?.response?.status === 401
-          ? 'Invalid API key. Update EVENTS_INFO_SECTION_KEY in .env.'
-          : 'Could not load events. Check your connection and API config.';
-      setError(message);
+      setError(resolveEventsError(err));
       setEvents([]);
     } finally {
       setLoading(false);
