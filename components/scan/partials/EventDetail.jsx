@@ -201,6 +201,28 @@ export default function EventDetail() {
               Event details
             </Text>
           </View>
+          {!loading && !error && (
+            <Pressable
+              onPress={scannable ? openScanner : undefined}
+              disabled={!scannable}
+              className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl ${
+                scannable ? 'bg-alpha active:opacity-80' : 'bg-beta/10 dark:bg-light/10'
+              }`}
+            >
+              <Ionicons
+                name="qr-code"
+                size={17}
+                color={scannable ? Colors.beta : isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'}
+              />
+              <Text
+                className={`text-xs font-bold ${
+                  scannable ? 'text-beta' : 'text-beta/35 dark:text-light/35'
+                }`}
+              >
+                {scannable ? 'Scan' : 'Not today'}
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         {loading ? (
@@ -269,23 +291,7 @@ export default function EventDetail() {
               </View>
             </SectionCard>
 
-            {scannable ? (
-              <Pressable
-                onPress={openScanner}
-                className="flex-row items-center gap-4 bg-alpha p-4 rounded-2xl active:opacity-90"
-              >
-                <View className="w-12 h-12 rounded-2xl bg-beta/10 items-center justify-center">
-                  <Ionicons name="qr-code" size={26} color={Colors.beta} />
-                </View>
-                <View className="flex-1 min-w-0">
-                  <Text className="text-base font-bold text-beta">Scan visitor QR</Text>
-                  <Text className="text-xs text-beta/70 mt-0.5">
-                    Check in registered visitors at the door
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={Colors.beta} />
-              </Pressable>
-            ) : (
+            {!scannable ? (
               <SectionCard className="p-4">
                 <View className="flex-row items-start gap-3">
                   <View className="w-10 h-10 rounded-xl bg-beta/8 dark:bg-light/8 items-center justify-center">
@@ -299,7 +305,7 @@ export default function EventDetail() {
                   </View>
                 </View>
               </SectionCard>
-            )}
+            ) : null}
 
             <SectionCard className="p-4">
               <View className="flex-row items-center justify-between mb-1">
