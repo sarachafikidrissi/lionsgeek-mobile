@@ -1,11 +1,16 @@
 import { View, Text, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { canScanEvent, formatEventDate, getEventCoverUrl, getEventDisplayName } from '@/components/scan/helpers';
+import {
+  formatEventDate,
+  getEventCoverUrl,
+  getEventDisplayName,
+  getEventStatusLabel,
+} from '@/components/scan/helpers';
 
 export default function EventCard({ event, onPress }) {
   const title = getEventDisplayName(event?.name);
   const coverUrl = getEventCoverUrl(event?.cover);
-  const scannable = canScanEvent(event);
+  const statusLabel = getEventStatusLabel(event);
 
   return (
     <Pressable
@@ -25,13 +30,17 @@ export default function EventCard({ event, onPress }) {
           <Text className="flex-1 text-base font-bold text-beta dark:text-light" numberOfLines={2}>
             {title}
           </Text>
-          {scannable ? (
+          {statusLabel === 'Today' ? (
             <View className="bg-good/15 px-2 py-1 rounded-full">
               <Text className="text-[10px] font-semibold text-good">Today</Text>
             </View>
+          ) : statusLabel === 'Upcoming' ? (
+            <View className="bg-alpha/15 px-2 py-1 rounded-full">
+              <Text className="text-[10px] font-semibold text-alpha">Upcoming</Text>
+            </View>
           ) : (
             <View className="bg-beta/10 dark:bg-light/10 px-2 py-1 rounded-full">
-              <Text className="text-[10px] font-semibold text-beta/60 dark:text-light/60">Upcoming</Text>
+              <Text className="text-[10px] font-semibold text-beta/50 dark:text-light/50">Past</Text>
             </View>
           )}
         </View>

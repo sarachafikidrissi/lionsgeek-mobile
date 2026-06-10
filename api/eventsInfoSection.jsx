@@ -63,8 +63,9 @@ const put = async (endpoint, data) => {
 };
 
 export const EventsInfoAPI = {
-  // Cover images always resolve to the public site.
+  // Public site URL (lionsgeek.ma). Used for image src when not proxying.
   BASE_URL: PUBLIC_URL,
+  APP_URL,
   USE_PROXY,
   getEvents: () => get('events'),
   getEvent: (eventId) => get(`events/${eventId}`),

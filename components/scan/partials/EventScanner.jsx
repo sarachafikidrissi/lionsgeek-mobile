@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Alert, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,13 +7,17 @@ import EventsInfoAPI from '@/api/eventsInfoSection';
 import Skeleton from '@/components/ui/Skeleton';
 import { getEventDisplayName, mapValidationMessage } from '@/components/scan/helpers';
 
+const DUPLICATE_SCAN_MS = 2500;
+
 export default function EventScanner() {
   const { eventId } = useLocalSearchParams();
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
+  const [cameraKey, setCameraKey] = useState(0);
+  const [lastResult, setLastResult] = useState(null);
   const scanLockRef = useRef(false);
+  const lastScanRef = useRef({ data: null, at: 0 });
 
   useEffect(() => {
     const loadEvent = async () => {
@@ -28,60 +32,63 @@ export default function EventScanner() {
     loadEvent();
   }, [eventId]);
 
-  const resetScan = useCallback(() => {
-    setScanned(false);
-    setProcessing(false);
-    scanLockRef.current = false;
+  const remountCamera = useCallback(() => {
+    setCameraKey((key) => key + 1);
   }, []);
 
-  // The scanner screen stays on the stack after a successful scan. Without this
-  // reset, scanned/processing stay true and the camera ignores further codes.
+  const unlockScanner = useCallback(() => {
+    scanLockRef.current = false;
+    setProcessing(false);
+    remountCamera();
+  }, [remountCamera]);
+
+  const prepareForNextScan = useCallback(() => {
+    setLastResult(null);
+    unlockScanner();
+  }, [unlockScanner]);
+
   useFocusEffect(
     useCallback(() => {
-      resetScan();
-    }, [resetScan])
+      setLastResult(null);
+      scanLockRef.current = false;
+      setProcessing(false);
+      lastScanRef.current = { data: null, at: 0 };
+      remountCamera();
+    }, [remountCamera])
   );
 
-  const showResultAlert = (title, message, status) => {
-    const canContinue = status === 'success' || status === 'warning';
+  const showFailure = useCallback(
+    (title, message) => {
+      setLastResult({ title, message, status: 'error' });
+      unlockScanner();
+    },
+    [unlockScanner]
+  );
 
-    if (canContinue) {
-      Alert.alert(title, message, [
-        { text: 'Scan another', onPress: resetScan },
-        {
-          text: 'Done',
-          style: 'cancel',
-          onPress: () => router.replace(`/(tabs)/scan/${eventId}`),
-        },
-      ]);
+  const handleBarCodeScanned = async ({ data }) => {
+    if (scanLockRef.current || processing || !eventId) return;
+
+    const now = Date.now();
+    if (lastScanRef.current.data === data && now - lastScanRef.current.at < DUPLICATE_SCAN_MS) {
       return;
     }
 
-    Alert.alert(title, message, [{ text: 'OK', onPress: resetScan }]);
-  };
-
-  const handleBarCodeScanned = async ({ data }) => {
-    if (scanned || processing || scanLockRef.current || !eventId) return;
-
     scanLockRef.current = true;
-    setScanned(true);
     setProcessing(true);
+    setLastResult(null);
+    lastScanRef.current = { data, at: now };
 
     try {
       let qrData;
       try {
         qrData = JSON.parse(data);
       } catch {
-        Alert.alert('Invalid QR Code', 'This QR code is not a valid event invitation.', [
-          { text: 'OK', onPress: resetScan },
-        ]);
+        showFailure('Invalid QR Code', 'This QR code is not a valid event invitation.');
         return;
       }
 
       if (!qrData.email || qrData.code === undefined) {
-        Alert.alert('Invalid QR Code', 'Missing visitor information in this QR code.', [
-          { text: 'OK', onPress: resetScan },
-        ]);
+        showFailure('Invalid QR Code', 'Missing visitor information in this QR code.');
         return;
       }
 
@@ -103,14 +110,12 @@ export default function EventScanner() {
               ? 'Check-in failed'
               : 'Scan result';
 
-      showResultAlert(title, message, status);
+      setLastResult({ title, message, status });
     } catch (error) {
       console.error('[SCAN] Validation error:', error);
-      Alert.alert('Error', 'Failed to validate QR code. Please try again.', [
-        { text: 'OK', onPress: resetScan },
-      ]);
+      showFailure('Error', 'Failed to validate QR code. Please try again.');
     } finally {
-      setProcessing(false);
+      unlockScanner();
     }
   };
 
@@ -145,10 +150,11 @@ export default function EventScanner() {
   return (
     <View className="flex-1 bg-dark">
       <CameraView
+        key={cameraKey}
         className="flex-1"
         facing="back"
         active
-        onBarcodeScanned={scanned || processing ? undefined : handleBarCodeScanned}
+        onBarcodeScanned={processing ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
       >
         <View className="flex-1">
@@ -174,11 +180,52 @@ export default function EventScanner() {
             </View>
           </View>
 
-          <View className="items-center px-8 pb-16">
+          <View className="items-center px-4 pb-6">
             {processing ? (
               <View className="items-center gap-3">
                 <Skeleton width={28} height={28} borderRadius={14} isDark={false} />
                 <Text className="text-light font-semibold">Processing…</Text>
+              </View>
+            ) : lastResult ? (
+              <View className="w-full bg-beta/90 rounded-2xl p-4">
+                <View className="flex-row items-center gap-2 mb-2">
+                  <Ionicons
+                    name={
+                      lastResult.status === 'success'
+                        ? 'checkmark-circle'
+                        : lastResult.status === 'warning'
+                          ? 'alert-circle'
+                          : 'close-circle'
+                    }
+                    size={22}
+                    color={
+                      lastResult.status === 'success'
+                        ? '#51b04f'
+                        : lastResult.status === 'warning'
+                          ? '#ffc801'
+                          : '#ef4444'
+                    }
+                  />
+                  <Text className="text-light text-base font-bold flex-1">{lastResult.title}</Text>
+                </View>
+                <Text className="text-light/80 text-sm mb-4">{lastResult.message}</Text>
+                <View className="flex-row gap-3">
+                  <Pressable
+                    onPress={prepareForNextScan}
+                    className="flex-1 bg-light/15 py-3 rounded-xl items-center active:opacity-90"
+                  >
+                    <Text className="text-light font-semibold">Clear</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => router.replace(`/(tabs)/scan/${eventId}`)}
+                    className="flex-1 bg-alpha py-3 rounded-xl items-center active:opacity-90"
+                  >
+                    <Text className="text-beta font-bold">Done</Text>
+                  </Pressable>
+                </View>
+                <Text className="text-light/60 text-xs text-center mt-3">
+                  Point the camera at the next visitor — no need to tap Clear.
+                </Text>
               </View>
             ) : (
               <>

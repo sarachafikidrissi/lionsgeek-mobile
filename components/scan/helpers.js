@@ -18,15 +18,31 @@ export function getEventDisplayName(name) {
   return String(name);
 }
 
-// Event cover path to absolute URL on lionsgeek.ma.
+// Event cover filename/path to a loadable absolute image URL.
+// Filenames from the API often contain spaces (e.g. "POST CODE 2.png") and must
+// be URI-encoded. In proxy mode images are served via mylionsgeek because the
+// device may not reach lionsgeek.ma directly.
 export function getEventCoverUrl(cover) {
   if (!cover || typeof cover !== 'string') return null;
-  if (cover.startsWith('http')) return cover;
-  const base = EventsInfoAPI.BASE_URL;
-  if (cover.includes('/')) {
-    return `${base}${cover.startsWith('/') ? cover : `/${cover}`}`;
+  if (cover.startsWith('http://') || cover.startsWith('https://')) return cover;
+
+  const publicBase = EventsInfoAPI.BASE_URL;
+  const appBase = EventsInfoAPI.APP_URL;
+  const useProxy = EventsInfoAPI.USE_PROXY;
+
+  let filename = cover.trim();
+  if (filename.includes('/')) {
+    filename = filename.replace(/^\/+/, '').split('/').pop() || filename;
   }
-  return `${base}/storage/images/events/${cover}`;
+
+  const encoded = encodeURIComponent(filename);
+
+  if (useProxy && appBase) {
+    return `${appBase}/api/events-info/images/events/${encoded}`;
+  }
+
+  if (!publicBase) return null;
+  return `${publicBase}/storage/images/events/${encoded}`;
 }
 
 export function getEventDate(event) {
@@ -70,23 +86,34 @@ export function filterActiveEvents(events) {
     });
 }
 
-export function groupEventsByDay(events) {
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const live = [];
-  const upcoming = [];
+// All events with a valid date (no today/future filter).
+export function normalizeEvents(events) {
+  if (!Array.isArray(events)) return [];
+  return events.filter((event) => getEventDate(event));
+}
 
-  events.forEach((event) => {
-    const eventDate = getEventDate(event);
-    if (!eventDate) return;
-    const dayKey = format(eventDate, 'yyyy-MM-dd');
-    if (dayKey === today) {
-      live.push(event);
-    } else {
-      upcoming.push(event);
-    }
+export function sortEventsByDate(events, order = 'desc') {
+  return [...events].sort((a, b) => {
+    const da = getEventDate(a)?.getTime() ?? 0;
+    const db = getEventDate(b)?.getTime() ?? 0;
+    return order === 'desc' ? db - da : da - db;
   });
+}
 
-  return { live, upcoming };
+export function filterEventsByName(events, query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return events;
+  return events.filter((event) => getEventDisplayName(event?.name).toLowerCase().includes(q));
+}
+
+export function getEventStatusLabel(event) {
+  const eventDate = getEventDate(event);
+  if (!eventDate) return 'Unknown';
+  const today = startOfDay(new Date());
+  const eventDay = startOfDay(eventDate);
+  if (eventDay.getTime() === today.getTime()) return 'Today';
+  if (eventDay > today) return 'Upcoming';
+  return 'Past';
 }
 
 // Turns an events fetch failure into a specific, actionable message so the
