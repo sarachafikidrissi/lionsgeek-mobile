@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
@@ -9,6 +9,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import AccessDenied from '@/components/scan/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
 import ParticipantsList from '@/components/scan/partials/ParticipantsList';
+import EventCoverImage from '@/components/scan/partials/EventCoverImage';
 import {
   canScanEvent,
   formatEventDate,
@@ -110,9 +111,7 @@ export default function EventDetail() {
               <RefreshControl refreshing={refreshing} onRefresh={() => fetchEvent(true)} tintColor="#ffc801" />
             }
           >
-            {coverUrl ? (
-              <Image source={{ uri: coverUrl }} className="w-full h-44 rounded-2xl mb-4" resizeMode="cover" />
-            ) : null}
+            <EventCoverImage uri={coverUrl} height={176} borderRadius={16} className="mb-4" />
 
             <Text className="text-xl font-bold text-beta dark:text-light">{title}</Text>
             <Text className="text-sm text-beta/70 dark:text-light/70 mt-2">{formatEventDate(event)}</Text>

@@ -1,5 +1,6 @@
-import { View, Text, Pressable, Image } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import EventCoverImage from '@/components/scan/partials/EventCoverImage';
 import {
   formatEventDate,
   getEventCoverUrl,
@@ -17,13 +18,7 @@ export default function EventCard({ event, onPress }) {
       onPress={onPress}
       className="bg-light dark:bg-dark_gray border border-beta/10 dark:border-light/10 rounded-2xl overflow-hidden mb-3 active:opacity-90"
     >
-      {coverUrl ? (
-        <Image source={{ uri: coverUrl }} className="w-full h-32" resizeMode="cover" />
-      ) : (
-        <View className="w-full h-32 bg-alpha/15 items-center justify-center">
-          <Ionicons name="calendar" size={36} color="#ffc801" />
-        </View>
-      )}
+      <EventCoverImage uri={coverUrl} height={128} />
 
       <View className="p-4">
         <View className="flex-row items-start justify-between gap-2">
