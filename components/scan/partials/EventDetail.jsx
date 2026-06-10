@@ -10,16 +10,115 @@ import AccessDenied from '@/components/scan/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
 import ParticipantsList from '@/components/scan/partials/ParticipantsList';
 import EventCoverImage from '@/components/scan/partials/EventCoverImage';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import {
   canScanEvent,
+  formatEventCapacity,
   formatEventDate,
   getEventCoverUrl,
   getEventDisplayName,
+  getEventStatusLabel,
+  getEventTotalCapacity,
+  getParticipantCounts,
 } from '@/components/scan/helpers';
+
+function StatusBadge({ status }) {
+  if (status === 'Today') {
+    return (
+      <View className="flex-row items-center gap-1.5 bg-good/20 px-3 py-1.5 rounded-full">
+        <View className="w-1.5 h-1.5 rounded-full bg-good" />
+        <Text className="text-xs font-bold text-good">Today</Text>
+      </View>
+    );
+  }
+  if (status === 'Upcoming') {
+    return (
+      <View className="flex-row items-center gap-1.5 bg-alpha/20 px-3 py-1.5 rounded-full">
+        <Ionicons name="time-outline" size={12} color={Colors.alpha} />
+        <Text className="text-xs font-bold text-alpha">Upcoming</Text>
+      </View>
+    );
+  }
+  return (
+    <View className="bg-beta/15 dark:bg-light/15 px-3 py-1.5 rounded-full">
+      <Text className="text-xs font-bold text-beta/60 dark:text-light/60">Past</Text>
+    </View>
+  );
+}
+
+function InfoRow({ icon, label, value }) {
+  return (
+    <View className="flex-row items-center gap-3 py-3">
+      <View className="w-10 h-10 rounded-xl bg-alpha/15 items-center justify-center">
+        <Ionicons name={icon} size={18} color={Colors.alpha} />
+      </View>
+      <View className="flex-1 min-w-0">
+        <Text className="text-[11px] font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
+          {label}
+        </Text>
+        <Text className="text-sm font-semibold text-beta dark:text-light mt-0.5" numberOfLines={2}>
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function SectionCard({ children, className = '' }) {
+  return (
+    <View
+      className={`bg-light dark:bg-dark_gray border border-beta/8 dark:border-light/8 rounded-2xl overflow-hidden ${className}`}
+    >
+      {children}
+    </View>
+  );
+}
+
+function AttendanceStat({ icon, label, value, tone = 'alpha' }) {
+  const toneClasses =
+    tone === 'good'
+      ? {
+          box: 'bg-good/12 border-good/20',
+          icon: Colors.good,
+          value: 'text-good',
+          label: 'text-good',
+        }
+      : {
+          box: 'bg-alpha/12 border-alpha/20',
+          icon: Colors.alpha,
+          value: 'text-beta dark:text-light',
+          label: 'text-beta/55 dark:text-light/55',
+        };
+
+  return (
+    <View className={`flex-1 border rounded-xl p-3.5 ${toneClasses.box}`}>
+      <View className="flex-row items-center gap-2 mb-2">
+        <Ionicons name={icon} size={16} color={toneClasses.icon} />
+        <Text className={`text-[10px] font-bold uppercase tracking-wide ${toneClasses.label}`}>{label}</Text>
+      </View>
+      <Text className={`text-2xl font-bold ${toneClasses.value}`}>{value}</Text>
+    </View>
+  );
+}
+
+function DetailSkeleton({ isDark }) {
+  return (
+    <View className="p-4 gap-4">
+      <Skeleton width="100%" height={200} borderRadius={20} isDark={isDark} />
+      <Skeleton width="100%" height={140} borderRadius={16} isDark={isDark} />
+      <Skeleton width="100%" height={56} borderRadius={16} isDark={isDark} />
+      <Skeleton width="100%" height={180} borderRadius={16} isDark={isDark} />
+    </View>
+  );
+}
 
 export default function EventDetail() {
   const { user } = useAppContext();
   const { eventId } = useLocalSearchParams();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
   const [event, setEvent] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +152,6 @@ export default function EventDetail() {
     fetchEvent();
   }, [fetchEvent]);
 
-  // Refresh registrations when returning from the scanner (skip the first focus on open).
   useFocusEffect(
     useCallback(() => {
       if (skipFocusRefresh.current) {
@@ -67,6 +165,12 @@ export default function EventDetail() {
   const scannable = event ? canScanEvent(event) : false;
   const title = getEventDisplayName(event?.name);
   const coverUrl = getEventCoverUrl(event?.cover);
+  const statusLabel = event ? getEventStatusLabel(event) : null;
+  const capacityLabel = event ? formatEventCapacity(event, participants.length) : null;
+  const totalCapacity = event ? getEventTotalCapacity(event, participants.length) : null;
+  const capacityFill =
+    totalCapacity && totalCapacity > 0 ? Math.min(1, participants.length / totalCapacity) : 0;
+  const { registered: registeredCount, scanned: scannedCount } = getParticipantCounts(participants);
 
   const openScanner = () => {
     router.push({
@@ -82,71 +186,174 @@ export default function EventDetail() {
   return (
     <AppLayout showNavbar={false}>
       <View className="flex-1 bg-light dark:bg-dark">
-        <View className="pt-12 pb-4 px-4 border-b border-beta/10 dark:border-light/10 flex-row items-center">
-          <Pressable onPress={() => router.back()} className="p-2 -ml-2 active:opacity-70">
-            <Ionicons name="arrow-back" size={24} className="text-beta dark:text-light" color="#ffc801" />
+        <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
+          <Pressable
+            onPress={() => router.back()}
+            className="w-10 h-10 rounded-xl bg-alpha/15 items-center justify-center active:opacity-70"
+          >
+            <Ionicons name="arrow-back" size={20} color={Colors.alpha} />
           </Pressable>
-          <Text className="flex-1 text-lg font-bold text-beta dark:text-light ml-1" numberOfLines={1}>
-            Event details
-          </Text>
+          <View className="flex-1 min-w-0">
+            <Text className="text-xs font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
+              Scan
+            </Text>
+            <Text className="text-base font-bold text-beta dark:text-light" numberOfLines={1}>
+              Event details
+            </Text>
+          </View>
         </View>
 
         {loading ? (
-          <View className="p-4 gap-3">
-            <Skeleton width="100%" height={160} borderRadius={16} isDark={false} />
-            <Skeleton width="100%" height={120} borderRadius={16} isDark={false} />
-          </View>
+          <DetailSkeleton isDark={isDark} />
         ) : error ? (
           <View className="flex-1 items-center justify-center px-8">
-            <Text className="text-sm text-error text-center">{error}</Text>
-            <Pressable onPress={() => fetchEvent()} className="mt-4 bg-alpha px-5 py-3 rounded-xl">
-              <Text className="text-beta font-semibold">Retry</Text>
+            <View className="w-16 h-16 rounded-2xl bg-error/15 items-center justify-center mb-4">
+              <Ionicons name="cloud-offline-outline" size={32} color={Colors.error} />
+            </View>
+            <Text className="text-base font-semibold text-beta dark:text-light text-center">
+              Something went wrong
+            </Text>
+            <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-2">{error}</Text>
+            <Pressable
+              onPress={() => fetchEvent()}
+              className="mt-6 flex-row items-center gap-2 bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
+            >
+              <Ionicons name="refresh" size={18} color={Colors.beta} />
+              <Text className="text-beta font-bold">Try again</Text>
             </Pressable>
           </View>
         ) : (
           <ScrollView
             className="flex-1"
-            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+            contentContainerClassName="p-4 pb-10 gap-4"
+            showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={() => fetchEvent(true)} tintColor="#ffc801" />
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => fetchEvent(true)}
+                tintColor={Colors.alpha}
+                colors={[Colors.alpha]}
+              />
             }
           >
-            <EventCoverImage uri={coverUrl} height={176} borderRadius={16} className="mb-4" />
+            <View className="relative">
+              <EventCoverImage uri={coverUrl} height={200} borderRadius={20} />
+              {statusLabel ? (
+                <View className="absolute top-3 right-3">
+                  <StatusBadge status={statusLabel} />
+                </View>
+              ) : null}
+            </View>
 
-            <Text className="text-xl font-bold text-beta dark:text-light">{title}</Text>
-            <Text className="text-sm text-beta/70 dark:text-light/70 mt-2">{formatEventDate(event)}</Text>
-            {event?.location ? (
-              <View className="flex-row items-center gap-2 mt-2">
-                <Ionicons name="location-outline" size={16} color="#ffc801" />
-                <Text className="text-sm text-beta/70 dark:text-light/70">{event.location}</Text>
+            <SectionCard className="p-4">
+              <Text className="text-xl font-bold text-beta dark:text-light leading-tight">{title}</Text>
+
+              <View className="mt-1">
+                <InfoRow icon="calendar-outline" label="Date & time" value={formatEventDate(event)} />
+                {event?.location ? (
+                  <>
+                    <View className="h-px bg-beta/6 dark:bg-light/6 ml-[52px]" />
+                    <InfoRow icon="location-outline" label="Location" value={event.location} />
+                  </>
+                ) : null}
+                {/* {capacityLabel ? (
+                  <>
+                    <View className="h-px bg-beta/6 dark:bg-light/6 ml-[52px]" />
+                    <InfoRow
+                      icon="people-outline"
+                      label="Capacity"
+                      value={`${capacityLabel} registered`}
+                    />
+                  </>
+                ) : null} */}
               </View>
-            ) : null}
+            </SectionCard>
 
-            <Pressable
-              onPress={openScanner}
-              disabled={!scannable}
-              className={`mt-6 flex-row items-center justify-center gap-2 py-4 rounded-2xl ${
-                scannable ? 'bg-alpha active:opacity-90' : 'bg-beta/10 dark:bg-light/10'
-              }`}
-            >
-              <Ionicons name="qr-code-outline" size={22} color={scannable ? '#212529' : '#888'} />
-              <Text
-                className={`text-base font-bold ${scannable ? 'text-beta' : 'text-beta/40 dark:text-light/40'}`}
+            {scannable ? (
+              <Pressable
+                onPress={openScanner}
+                className="flex-row items-center gap-4 bg-alpha p-4 rounded-2xl active:opacity-90"
               >
-                {scannable ? 'Scan visitor QR' : 'Scan opens on event day'}
-              </Text>
-            </Pressable>
+                <View className="w-12 h-12 rounded-2xl bg-beta/10 items-center justify-center">
+                  <Ionicons name="qr-code" size={26} color={Colors.beta} />
+                </View>
+                <View className="flex-1 min-w-0">
+                  <Text className="text-base font-bold text-beta">Scan visitor QR</Text>
+                  <Text className="text-xs text-beta/70 mt-0.5">
+                    Check in registered visitors at the door
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors.beta} />
+              </Pressable>
+            ) : (
+              <SectionCard className="p-4">
+                <View className="flex-row items-start gap-3">
+                  <View className="w-10 h-10 rounded-xl bg-beta/8 dark:bg-light/8 items-center justify-center">
+                    <Ionicons name="lock-closed-outline" size={18} color={isDark ? Colors.light : Colors.beta} />
+                  </View>
+                  <View className="flex-1 min-w-0">
+                    <Text className="text-sm font-bold text-beta dark:text-light">Scan not available yet</Text>
+                    <Text className="text-xs text-beta/55 dark:text-light/55 mt-1 leading-5">
+                      QR scanning opens on the event day and stays available until midnight.
+                    </Text>
+                  </View>
+                </View>
+              </SectionCard>
+            )}
 
-            {!scannable ? (
-              <Text className="text-xs text-beta/50 dark:text-light/50 text-center mt-2">
-                Scanning is available until midnight on the event date.
-              </Text>
-            ) : null}
+            <SectionCard className="p-4">
+              <View className="flex-row items-center justify-between mb-1">
+                <View className="flex-row items-center gap-2">
+                  <View className="w-8 h-8 rounded-lg bg-alpha/15 items-center justify-center">
+                    <Ionicons name="people" size={16} color={Colors.alpha} />
+                  </View>
+                  <Text className="text-base font-bold text-beta dark:text-light">Registrations</Text>
+                </View>
+                {capacityLabel ? (
+                  <View className="bg-alpha/15 px-2.5 py-1 rounded-full">
+                    <Text className="text-xs font-bold text-beta dark:text-light">{capacityLabel}</Text>
+                  </View>
+                ) : (
+                  <View className="bg-beta/8 dark:bg-light/8 px-2.5 py-1 rounded-full">
+                    <Text className="text-xs font-bold text-beta dark:text-light">{participants.length}</Text>
+                  </View>
+                )}
+              </View>
 
-            <Text className="text-base font-bold text-beta dark:text-light mt-8 mb-2">
-              Registrations ({participants.length})
-            </Text>
-            <ParticipantsList participants={participants} />
+              <View className="flex-row gap-3 mt-3">
+                <AttendanceStat
+                  icon="person-add-outline"
+                  label="Registered"
+                  value={registeredCount}
+                />
+                <AttendanceStat
+                  icon="qr-code-outline"
+                  label="Came (scanned)"
+                  value={scannedCount}
+                  tone="good"
+                />
+              </View>
+
+              {totalCapacity ? (
+                <View className="mt-3 mb-1">
+                  <View className="h-1.5 rounded-full bg-beta/8 dark:bg-light/8 overflow-hidden">
+                    <View
+                      className="h-full rounded-full bg-alpha"
+                      style={{ width: `${capacityFill * 100}%` }}
+                    />
+                  </View>
+                  <Text className="text-[11px] text-beta/45 dark:text-light/45 mt-1.5">
+                    {registeredCount} of {totalCapacity} spots filled · {scannedCount} checked in
+                  </Text>
+                </View>
+              ) : (
+                <Text className="text-[11px] text-beta/45 dark:text-light/45 mt-3">
+                  {scannedCount} of {registeredCount} registered visitors checked in
+                </Text>
+              )}
+
+              <ParticipantsList participants={participants} />
+            </SectionCard>
           </ScrollView>
         )}
       </View>

@@ -1,55 +1,62 @@
 import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '@/constants/Colors';
 
 export default function ParticipantsList({ participants = [] }) {
   if (!participants.length) {
     return (
-      <View className="items-center py-8">
-        <Ionicons name="people-outline" size={32} color="#ffc801" />
-        <Text className="text-sm text-beta/60 dark:text-light/60 mt-2">No registrations yet</Text>
+      <View className="items-center py-6 mt-2">
+        <View className="w-14 h-14 rounded-2xl bg-alpha/15 items-center justify-center mb-3">
+          <Ionicons name="people-outline" size={28} color={Colors.alpha} />
+        </View>
+        <Text className="text-sm font-semibold text-beta dark:text-light">No registrations yet</Text>
+        <Text className="text-xs text-beta/50 dark:text-light/50 text-center mt-1.5 px-2 leading-5">
+          Visitors who book on lionsgeek.ma will appear here.
+        </Text>
       </View>
     );
   }
 
-  const visited = participants.filter((p) => p.is_visited);
-  const pending = participants.filter((p) => !p.is_visited);
-
   return (
-    <View className="gap-4">
-      <View className="flex-row gap-3">
-        <View className="flex-1 bg-good/10 rounded-xl p-3 items-center">
-          <Text className="text-2xl font-bold text-good">{visited.length}</Text>
-          <Text className="text-[10px] font-semibold text-good uppercase mt-1">Checked in</Text>
-        </View>
-        <View className="flex-1 bg-beta/5 dark:bg-light/5 rounded-xl p-3 items-center">
-          <Text className="text-2xl font-bold text-beta dark:text-light">{pending.length}</Text>
-          <Text className="text-[10px] font-semibold text-beta/60 dark:text-light/60 uppercase mt-1">
-            Pending
-          </Text>
-        </View>
-      </View>
+    <View className="gap-3 mt-4">
+      <Text className="text-[11px] font-bold uppercase tracking-wide text-beta/45 dark:text-light/45">
+        Visitor list
+      </Text>
 
-      {participants.map((participant) => (
-        <View
-          key={participant.id}
-          className="flex-row items-center justify-between py-3 border-b border-beta/10 dark:border-light/10"
-        >
-          <View className="flex-1 pr-3">
-            <Text className="text-sm font-semibold text-beta dark:text-light">{participant.name}</Text>
-            <Text className="text-xs text-beta/60 dark:text-light/60 mt-0.5">{participant.email}</Text>
+      <View className="rounded-xl overflow-hidden">
+        {participants.map((participant, index) => (
+          <View
+            key={participant.id}
+            className={`flex-row items-center gap-3 px-1 py-3 ${
+              index < participants.length - 1 ? 'border-b border-beta/6 dark:border-light/6' : ''
+            }`}
+          >
+            <View className="w-10 h-10 rounded-full bg-alpha/15 items-center justify-center">
+              <Text className="text-sm font-bold text-alpha">
+                {(participant.name || '?').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View className="flex-1 min-w-0">
+              <Text className="text-sm font-semibold text-beta dark:text-light" numberOfLines={1}>
+                {participant.name}
+              </Text>
+              <Text className="text-xs text-beta/55 dark:text-light/55 mt-0.5" numberOfLines={1}>
+                {participant.email}
+              </Text>
+            </View>
+            {participant.is_visited ? (
+              <View className="flex-row items-center gap-1 bg-good/15 px-2.5 py-1 rounded-full">
+                <Ionicons name="qr-code" size={12} color={Colors.good} />
+                <Text className="text-[10px] font-semibold text-good">Scanned</Text>
+              </View>
+            ) : (
+              <View className="bg-beta/10 dark:bg-light/10 px-2.5 py-1 rounded-full">
+                <Text className="text-[10px] font-semibold text-beta/50 dark:text-light/50">Not yet</Text>
+              </View>
+            )}
           </View>
-          {participant.is_visited ? (
-            <View className="flex-row items-center gap-1 bg-good/15 px-2 py-1 rounded-full">
-              <Ionicons name="checkmark-circle" size={14} color="#51b04f" />
-              <Text className="text-[10px] font-semibold text-good">Visited</Text>
-            </View>
-          ) : (
-            <View className="bg-beta/10 dark:bg-light/10 px-2 py-1 rounded-full">
-              <Text className="text-[10px] font-semibold text-beta/50 dark:text-light/50">Pending</Text>
-            </View>
-          )}
-        </View>
-      ))}
+        ))}
+      </View>
     </View>
   );
 }

@@ -116,6 +116,33 @@ export function getEventStatusLabel(event) {
   return 'Past';
 }
 
+// API stores remaining spots in event.capacity; original total = remaining + registrations.
+export function getEventTotalCapacity(event, registeredCount = 0) {
+  const registered = Math.max(0, Number(registeredCount) || 0);
+  const remaining = Number(event?.capacity);
+  if (!Number.isFinite(remaining)) return null;
+  return remaining + registered;
+}
+
+export function formatEventCapacity(event, registeredCount = 0) {
+  const registered = Math.max(0, Number(registeredCount) || 0);
+  const total = getEventTotalCapacity(event, registeredCount);
+  if (!total) return `${registered}`;
+  return `${registered}/${total}`;
+}
+
+export function getParticipantCounts(participants = []) {
+  const list = Array.isArray(participants) ? participants : [];
+  const registered = list.length;
+  const scanned = list.filter((p) => p.is_visited).length;
+
+  return {
+    registered,
+    scanned,
+    pending: registered - scanned,
+  };
+}
+
 // Turns an events fetch failure into a specific, actionable message so the
 // real root cause (missing config vs. auth vs. network) is visible on screen.
 export function resolveEventsError(err) {

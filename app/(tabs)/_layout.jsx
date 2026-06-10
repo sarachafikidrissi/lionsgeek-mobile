@@ -72,13 +72,13 @@ export default function TabLayout() {
   };
 
   const tabScreen = [
-    { route: "index", name: "Home", icon: "house.fill", showTab: true, roles: [] }, // Everyone
-    { route: "reservations", name: "Reservations", icon: "calendar", showTab: true, roles: [] }, // Everyone
-    { route: "training", name: "Training", icon: "school", showTab: true, roles: [] }, // Everyone
-    { route: "scan", name: "Scan", icon: "qr-code", showTab: isStrictAdmin, roles: ['admin'] },
-    { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill", showTab: true, roles: [] },
-    { route: "profile", name: "Profile", icon: "person.fill", showTab: true, roles: [] }, // Everyone
-  ].filter(screen => screen.showTab)
+    { route: "index", name: "Home", icon: "house.fill" },
+    { route: "reservations", name: "Reservations", icon: "calendar" },
+    { route: "training", name: "Training", icon: "school" },
+    { route: "scan", name: "Scan", icon: "qr-code", adminOnly: true },
+    { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill" },
+    { route: "profile", name: "Profile", icon: "person.fill" },
+  ];
 
   const hiddenScreens = [
     // hado mo2a9atan hna
@@ -128,6 +128,7 @@ export default function TabLayout() {
           options={{
             headerShown: false,
             title: screen.name,
+            href: screen.adminOnly && !isStrictAdmin ? null : undefined,
             ...(screen.route === 'profile'
               ? {
                   // Tabs keep screens mounted; if we previously opened someone via
@@ -171,7 +172,6 @@ export default function TabLayout() {
                 />
               );
             },
-            tabBarStyle: screen.showTab ? undefined : { display: 'none' },
           }}
         />
       ))}
