@@ -17,9 +17,9 @@ export default function ScanScreen() {
   }
 
   return (
-    <AppLayout showNavbar={false}>
+    <AppLayout showNavbar={true}>
       <View className="flex-1 bg-light dark:bg-dark">
-        <View className="pt-12 pb-4 px-4 border-b border-beta/10 dark:border-light/10">
+        <View className="px-4 pt-4 pb-2 border-b border-beta/10 dark:border-light/10">
           <Text className="text-2xl font-bold text-beta dark:text-light">Scan</Text>
           <Text className="text-sm text-beta/60 dark:text-light/60 mt-1">
             Check in event visitors and info session participants

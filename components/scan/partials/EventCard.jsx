@@ -16,7 +16,7 @@ export default function EventCard({ event, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      className="bg-light dark:bg-dark_gray border border-beta/10 dark:border-light/10 rounded-2xl overflow-hidden mb-3 active:opacity-90"
+      className="bg-light dark:bg-dark border border-beta/10 dark:border-light/10 rounded-2xl overflow-hidden mb-3 active:opacity-90"
     >
       <EventCoverImage uri={coverUrl} height={128} />
 

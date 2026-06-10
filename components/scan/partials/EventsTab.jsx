@@ -57,7 +57,7 @@ export default function EventsTab() {
 
   const searchBar = (
     <View className="flex-row items-center gap-2 px-4 pt-4 pb-2">
-      <View className="flex-1 flex-row items-center rounded-2xl border border-beta/10 dark:border-light/10 bg-light dark:bg-dark_gray px-3">
+      <View className="flex-1 flex-row items-center rounded-2xl border border-beta/10 dark:border-light/10 bg-light dark:bg-dark px-3">
         <Ionicons name="search" size={18} color="#888" />
         <TextInput
           placeholder="Search events…"
@@ -76,7 +76,7 @@ export default function EventsTab() {
       <Pressable
         onPress={toggleSortOrder}
         accessibilityLabel={sortOrder === 'desc' ? 'Sort oldest to newest' : 'Sort newest to oldest'}
-        className="w-11 h-11 rounded-2xl border border-beta/10 dark:border-light/10 bg-light dark:bg-dark_gray items-center justify-center active:opacity-80"
+        className="w-11 h-11 rounded-2xl border border-beta/10 dark:border-light/10 bg-light dark:bg-dark items-center justify-center active:opacity-80"
       >
         <Ionicons
           name={sortOrder === 'desc' ? 'arrow-down' : 'arrow-up'}
