@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
@@ -124,7 +124,18 @@ export default function EventDetail() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [participantSearch, setParticipantSearch] = useState('');
   const skipFocusRefresh = useRef(true);
+
+  const filteredParticipants = useMemo(() => {
+    const q = participantSearch.trim().toLowerCase();
+    if (!q) return participants;
+    return participants.filter(
+      (p) =>
+        p.name?.toLowerCase().includes(q) ||
+        p.email?.toLowerCase().includes(q)
+    );
+  }, [participants, participantSearch]);
 
   const fetchEvent = useCallback(
     async (isRefresh = false) => {
@@ -358,7 +369,34 @@ export default function EventDetail() {
                 </Text>
               )}
 
-              <ParticipantsList participants={participants} />
+              {participants.length > 0 ? (
+                <View className="flex-row items-center gap-2 mt-4 mb-1 rounded-xl border border-beta/10 dark:border-light/10 bg-beta/4 dark:bg-light/4 px-3">
+                  <Ionicons name="search" size={16} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+                  <TextInput
+                    value={participantSearch}
+                    onChangeText={setParticipantSearch}
+                    placeholder="Search by name or email…"
+                    placeholderTextColor={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
+                    className="flex-1 min-h-10 py-2 text-sm text-beta dark:text-light"
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                  {participantSearch.length > 0 ? (
+                    <Pressable onPress={() => setParticipantSearch('')} hitSlop={8}>
+                      <Ionicons name="close-circle" size={16} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+
+              <ParticipantsList
+                participants={filteredParticipants}
+                emptyMessage={
+                  participantSearch
+                    ? `No participants match "${participantSearch}".`
+                    : undefined
+                }
+              />
             </SectionCard>
           </ScrollView>
         )}

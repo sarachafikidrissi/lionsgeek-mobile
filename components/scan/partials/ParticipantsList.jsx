@@ -2,16 +2,18 @@ import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 
-export default function ParticipantsList({ participants = [] }) {
+export default function ParticipantsList({ participants = [], emptyMessage }) {
   if (!participants.length) {
     return (
       <View className="items-center py-6 mt-2">
         <View className="w-14 h-14 rounded-2xl bg-alpha/15 items-center justify-center mb-3">
-          <Ionicons name="people-outline" size={28} color={Colors.alpha} />
+          <Ionicons name={emptyMessage ? 'search-outline' : 'people-outline'} size={28} color={Colors.alpha} />
         </View>
-        <Text className="text-sm font-semibold text-beta dark:text-light">No registrations yet</Text>
+        <Text className="text-sm font-semibold text-beta dark:text-light">
+          {emptyMessage ? 'No matches' : 'No registrations yet'}
+        </Text>
         <Text className="text-xs text-beta/50 dark:text-light/50 text-center mt-1.5 px-2 leading-5">
-          Visitors who book on lionsgeek.ma will appear here.
+          {emptyMessage ?? 'Visitors who book on lionsgeek.ma will appear here.'}
         </Text>
       </View>
     );
