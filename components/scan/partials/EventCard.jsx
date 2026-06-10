@@ -1,0 +1,55 @@
+import { View, Text, Pressable, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { canScanEvent, formatEventDate, getEventCoverUrl, getEventDisplayName } from '@/components/scan/helpers';
+
+export default function EventCard({ event, onPress }) {
+  const title = getEventDisplayName(event?.name);
+  const coverUrl = getEventCoverUrl(event?.cover);
+  const scannable = canScanEvent(event);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className="bg-light dark:bg-dark_gray border border-beta/10 dark:border-light/10 rounded-2xl overflow-hidden mb-3 active:opacity-90"
+    >
+      {coverUrl ? (
+        <Image source={{ uri: coverUrl }} className="w-full h-32" resizeMode="cover" />
+      ) : (
+        <View className="w-full h-32 bg-alpha/15 items-center justify-center">
+          <Ionicons name="calendar" size={36} color="#ffc801" />
+        </View>
+      )}
+
+      <View className="p-4">
+        <View className="flex-row items-start justify-between gap-2">
+          <Text className="flex-1 text-base font-bold text-beta dark:text-light" numberOfLines={2}>
+            {title}
+          </Text>
+          {scannable ? (
+            <View className="bg-good/15 px-2 py-1 rounded-full">
+              <Text className="text-[10px] font-semibold text-good">Today</Text>
+            </View>
+          ) : (
+            <View className="bg-beta/10 dark:bg-light/10 px-2 py-1 rounded-full">
+              <Text className="text-[10px] font-semibold text-beta/60 dark:text-light/60">Upcoming</Text>
+            </View>
+          )}
+        </View>
+
+        <View className="flex-row items-center gap-2 mt-2">
+          <Ionicons name="time-outline" size={14} color="#ffc801" />
+          <Text className="text-xs text-beta/70 dark:text-light/70">{formatEventDate(event)}</Text>
+        </View>
+
+        {event?.location ? (
+          <View className="flex-row items-center gap-2 mt-1">
+            <Ionicons name="location-outline" size={14} color="#ffc801" />
+            <Text className="text-xs text-beta/70 dark:text-light/70 flex-1" numberOfLines={1}>
+              {event.location}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
