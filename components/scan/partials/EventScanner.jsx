@@ -1,20 +1,90 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import Skeleton from '@/components/ui/Skeleton';
+import ScanResultOverlay from '@/components/scan/partials/ScanResultModal';
+import { Colors } from '@/constants/Colors';
 import { getEventDisplayName, mapValidationMessage } from '@/components/scan/helpers';
 
 const DUPLICATE_SCAN_MS = 2500;
+const CORNER_SIZE = 36;
+const BORDER_WIDTH = 4;
+
+function buildScanResult(message, profile) {
+  const status = mapValidationMessage(message);
+  const visitorName = profile?.name?.trim() || null;
+  const normalized = String(message || '').toLowerCase();
+
+  if (status === 'success') {
+    return {
+      status: 'success',
+      title: 'Check-in successful',
+      message: visitorName ? `${visitorName} is registered for this event.` : message,
+      visitorName,
+    };
+  }
+
+  if (status === 'warning') {
+    return {
+      status: 'warning',
+      title: 'Already checked in',
+      message: visitorName ? `${visitorName} was already scanned for this event.` : message,
+      visitorName,
+    };
+  }
+
+  if (normalized.includes('another event')) {
+    return {
+      status: 'error',
+      title: 'Wrong event',
+      message: 'This visitor is registered for a different event.',
+      visitorName,
+    };
+  }
+
+  if (normalized.includes('no such participant')) {
+    return {
+      status: 'error',
+      title: 'Not registered',
+      message: 'This visitor is not registered for this event.',
+      visitorName,
+    };
+  }
+
+  return {
+    status: 'error',
+    title: 'Check-in failed',
+    message: message || 'Could not validate this QR code.',
+    visitorName,
+  };
+}
+
+function ScanFrameCorner({ position }) {
+  const base = {
+    position: 'absolute',
+    width: CORNER_SIZE,
+    height: CORNER_SIZE,
+    borderColor: Colors.alpha,
+  };
+
+  const corners = {
+    'top-left': { ...base, top: 0, left: 0, borderTopWidth: BORDER_WIDTH, borderLeftWidth: BORDER_WIDTH },
+    'top-right': { ...base, top: 0, right: 0, borderTopWidth: BORDER_WIDTH, borderRightWidth: BORDER_WIDTH },
+    'bottom-left': { ...base, bottom: 0, left: 0, borderBottomWidth: BORDER_WIDTH, borderLeftWidth: BORDER_WIDTH },
+    'bottom-right': { ...base, bottom: 0, right: 0, borderBottomWidth: BORDER_WIDTH, borderRightWidth: BORDER_WIDTH },
+  };
+
+  return <View style={corners[position]} />;
+}
 
 export default function EventScanner() {
   const { eventId } = useLocalSearchParams();
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
-  const [cameraKey, setCameraKey] = useState(0);
   const [lastResult, setLastResult] = useState(null);
   const scanLockRef = useRef(false);
   const lastScanRef = useRef({ data: null, at: 0 });
@@ -32,38 +102,34 @@ export default function EventScanner() {
     loadEvent();
   }, [eventId]);
 
-  const remountCamera = useCallback(() => {
-    setCameraKey((key) => key + 1);
-  }, []);
-
-  const unlockScanner = useCallback(() => {
+  const resetScanner = useCallback(() => {
     scanLockRef.current = false;
     setProcessing(false);
-    remountCamera();
-  }, [remountCamera]);
+    lastScanRef.current = { data: null, at: 0 };
+  }, []);
 
-  const prepareForNextScan = useCallback(() => {
+  const handleResultDismiss = useCallback(() => {
     setLastResult(null);
-    unlockScanner();
-  }, [unlockScanner]);
+    resetScanner();
+
+    if (eventId) {
+      router.replace(`/(tabs)/scan/${eventId}`);
+    } else {
+      router.back();
+    }
+  }, [eventId, resetScanner]);
 
   useFocusEffect(
     useCallback(() => {
       setLastResult(null);
-      scanLockRef.current = false;
-      setProcessing(false);
-      lastScanRef.current = { data: null, at: 0 };
-      remountCamera();
-    }, [remountCamera])
+      resetScanner();
+    }, [resetScanner])
   );
 
-  const showFailure = useCallback(
-    (title, message) => {
-      setLastResult({ title, message, status: 'error' });
-      unlockScanner();
-    },
-    [unlockScanner]
-  );
+  const showFailure = useCallback((title, message) => {
+    setLastResult({ title, message, status: 'error', visitorName: null });
+    setProcessing(false);
+  }, []);
 
   const handleBarCodeScanned = async ({ data }) => {
     if (scanLockRef.current || processing || !eventId) return;
@@ -75,7 +141,6 @@ export default function EventScanner() {
 
     scanLockRef.current = true;
     setProcessing(true);
-    setLastResult(null);
     lastScanRef.current = { data, at: now };
 
     try {
@@ -83,12 +148,12 @@ export default function EventScanner() {
       try {
         qrData = JSON.parse(data);
       } catch {
-        showFailure('Invalid QR Code', 'This QR code is not a valid event invitation.');
+        showFailure('Invalid QR code', 'This QR code is not a valid event invitation.');
         return;
       }
 
       if (!qrData.email || qrData.code === undefined) {
-        showFailure('Invalid QR Code', 'Missing visitor information in this QR code.');
+        showFailure('Invalid QR code', 'Missing visitor information in this QR code.');
         return;
       }
 
@@ -99,29 +164,21 @@ export default function EventScanner() {
       });
 
       const message = response?.data?.message || 'Scan processed.';
-      const status = mapValidationMessage(message);
-
-      const title =
-        status === 'success'
-          ? 'Check-in successful'
-          : status === 'warning'
-            ? 'Already checked in'
-            : status === 'error'
-              ? 'Check-in failed'
-              : 'Scan result';
-
-      setLastResult({ title, message, status });
+      const profile = response?.data?.profile;
+      setLastResult(buildScanResult(message, profile));
     } catch (error) {
       console.error('[SCAN] Validation error:', error);
       showFailure('Error', 'Failed to validate QR code. Please try again.');
     } finally {
-      unlockScanner();
+      setProcessing(false);
     }
   };
 
+  const scanPaused = processing || !!lastResult;
+
   if (!permission) {
     return (
-      <View className="flex-1 bg-dark items-center justify-center px-6">
+      <View style={styles.container}>
         <Skeleton width={200} height={18} borderRadius={12} isDark />
       </View>
     );
@@ -129,117 +186,200 @@ export default function EventScanner() {
 
   if (!permission.granted) {
     return (
-      <View className="flex-1 bg-light dark:bg-dark items-center justify-center px-8">
-        <Ionicons name="camera-outline" size={64} color="#ffc801" />
-        <Text className="text-lg font-bold text-beta dark:text-light mt-4 text-center">
-          Camera permission required
-        </Text>
-        <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-2">
-          Allow camera access to scan visitor QR codes.
-        </Text>
-        <Pressable onPress={requestPermission} className="mt-6 bg-alpha px-6 py-3 rounded-xl active:opacity-90">
-          <Text className="text-beta font-bold">Grant permission</Text>
+      <View style={[styles.container, styles.permissionScreen]}>
+        <Ionicons name="camera-outline" size={64} color={Colors.alpha} />
+        <Text style={styles.permissionTitle}>Camera permission required</Text>
+        <Text style={styles.permissionText}>Allow camera access to scan visitor QR codes.</Text>
+        <Pressable onPress={requestPermission} style={styles.permissionButton}>
+          <Text style={styles.permissionButtonText}>Grant permission</Text>
         </Pressable>
-        <Pressable onPress={() => router.back()} className="mt-4 p-2">
-          <Text className="text-beta/60 dark:text-light/60">Go back</Text>
+        <Pressable onPress={() => router.back()} style={styles.backLink}>
+          <Text style={styles.backLinkText}>Go back</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-dark">
+    <View style={styles.container}>
       <CameraView
-        key={cameraKey}
-        className="flex-1"
+        style={StyleSheet.absoluteFillObject}
         facing="back"
         active
-        onBarcodeScanned={processing ? undefined : handleBarCodeScanned}
+        onBarcodeScanned={scanPaused ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
       >
-        <View className="flex-1">
-          <View className="flex-row items-center justify-between pt-14 px-4 pb-4">
-            <Pressable
-              onPress={() => router.back()}
-              className="w-10 h-10 rounded-full bg-beta/60 items-center justify-center active:opacity-80"
-            >
-              <Ionicons name="arrow-back" size={22} color="#fafafa" />
+        <View style={styles.overlay} pointerEvents="box-none">
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={20} color={Colors.light} />
             </Pressable>
-            <Text className="text-light text-base font-bold flex-1 text-center mx-2" numberOfLines={1}>
-              {eventTitle}
-            </Text>
-            <View className="w-10" />
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerEyebrow}>SCANNING</Text>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {eventTitle}
+              </Text>
+            </View>
+            <View style={styles.headerSpacer} />
           </View>
 
-          <View className="flex-1 items-center justify-center">
-            <View className="w-64 h-64 relative">
-              <View className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-alpha" />
-              <View className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-alpha" />
-              <View className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-alpha" />
-              <View className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-alpha" />
+          <View style={styles.frameSection}>
+            <View style={styles.scanFrame}>
+              <ScanFrameCorner position="top-left" />
+              <ScanFrameCorner position="top-right" />
+              <ScanFrameCorner position="bottom-left" />
+              <ScanFrameCorner position="bottom-right" />
+
+              {processing ? (
+                <View style={styles.processingWrap}>
+                  <Skeleton width={32} height={32} borderRadius={16} isDark={false} />
+                  <Text style={styles.processingText}>Validating…</Text>
+                </View>
+              ) : (
+                <Ionicons name="qr-code-outline" size={48} color={Colors.alpha} />
+              )}
             </View>
           </View>
 
-          <View className="items-center px-4 pb-6">
-            {processing ? (
-              <View className="items-center gap-3">
-                <Skeleton width={28} height={28} borderRadius={14} isDark={false} />
-                <Text className="text-light font-semibold">Processing…</Text>
-              </View>
-            ) : lastResult ? (
-              <View className="w-full bg-beta/90 rounded-2xl p-4">
-                <View className="flex-row items-center gap-2 mb-2">
-                  <Ionicons
-                    name={
-                      lastResult.status === 'success'
-                        ? 'checkmark-circle'
-                        : lastResult.status === 'warning'
-                          ? 'alert-circle'
-                          : 'close-circle'
-                    }
-                    size={22}
-                    color={
-                      lastResult.status === 'success'
-                        ? '#51b04f'
-                        : lastResult.status === 'warning'
-                          ? '#ffc801'
-                          : '#ef4444'
-                    }
-                  />
-                  <Text className="text-light text-base font-bold flex-1">{lastResult.title}</Text>
-                </View>
-                <Text className="text-light/80 text-sm mb-4">{lastResult.message}</Text>
-                <View className="flex-row gap-3">
-                  <Pressable
-                    onPress={prepareForNextScan}
-                    className="flex-1 bg-light/15 py-3 rounded-xl items-center active:opacity-90"
-                  >
-                    <Text className="text-light font-semibold">Clear</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => router.replace(`/(tabs)/scan/${eventId}`)}
-                    className="flex-1 bg-alpha py-3 rounded-xl items-center active:opacity-90"
-                  >
-                    <Text className="text-beta font-bold">Done</Text>
-                  </Pressable>
-                </View>
-                <Text className="text-light/60 text-xs text-center mt-3">
-                  Point the camera at the next visitor — no need to tap Clear.
-                </Text>
-              </View>
-            ) : (
-              <>
-                <Text className="text-light text-base font-semibold text-center">
-                  Position the visitor QR code in the frame
-                </Text>
-                <Text className="text-light/70 text-sm text-center mt-2">
-                  Scan invitations sent by lionsgeek.ma
-                </Text>
-              </>
-            )}
+          <View style={styles.instructions}>
+            <Text style={styles.instructionsTitle}>Position the visitor QR code in the frame</Text>
+            <Text style={styles.instructionsSub}>
+              Registered visitors show success. Others show an error, then you return to event details.
+            </Text>
           </View>
         </View>
       </CameraView>
+
+      <ScanResultOverlay visible={!!lastResult} result={lastResult} onDismiss={handleResultDismiss} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dark,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 56,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(33, 37, 41, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 12,
+  },
+  headerEyebrow: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: 'rgba(250, 250, 250, 0.6)',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  frameSection: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  scanFrame: {
+    width: 288,
+    height: 288,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  processingWrap: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  processingText: {
+    color: Colors.light,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  instructions: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  instructionsTitle: {
+    color: Colors.light,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  instructionsSub: {
+    color: 'rgba(250, 250, 250, 0.65)',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  permissionScreen: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: Colors.light,
+  },
+  permissionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.beta,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  permissionText: {
+    fontSize: 14,
+    color: 'rgba(33, 37, 41, 0.6)',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  permissionButton: {
+    marginTop: 24,
+    backgroundColor: Colors.alpha,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  permissionButtonText: {
+    color: Colors.beta,
+    fontWeight: '700',
+  },
+  backLink: {
+    marginTop: 16,
+    padding: 8,
+  },
+  backLinkText: {
+    color: 'rgba(33, 37, 41, 0.6)',
+  },
+});
