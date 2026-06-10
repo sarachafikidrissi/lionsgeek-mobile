@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
+  TextInput,
   Pressable,
   Image,
   ActivityIndicator,
@@ -9,7 +10,6 @@ import {
   Platform,
   StatusBar as RNStatusBar,
   StyleSheet,
-  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -27,6 +27,7 @@ import UserPickerSheet from '@/components/stories/editor/UserPickerSheet';
 import MusicPickerSheet from '@/components/stories/editor/MusicPickerSheet';
 import OverlayRenderer from '@/components/stories/OverlayRenderer';
 import GradientOverlay from '@/components/ui/GradientOverlay';
+import { resolveAvatarUrl } from '@/components/helpers/helpers';
 
 /**
  * Story creation screen.
@@ -41,12 +42,12 @@ import GradientOverlay from '@/components/ui/GradientOverlay';
  */
 export default function CreateStoryScreen() {
   const router = useRouter();
-  const { token } = useAppContext();
+  const { token, user } = useAppContext();
   const insets = useSafeAreaInsets();
 
   const [media, setMedia] = useState(null); // { uri, type, duration, width, height, mimeType }
   const [uploading, setUploading] = useState(false);
-  const [audience, setAudience] = useState('public'); // 'public' | 'close_friends'
+  const [postingAudience, setPostingAudience] = useState(null); // 'public' | 'close_friends' | null
   const [overlays, setOverlays] = useState([]); // creative layer
   const [selectedOverlayId, setSelectedOverlayId] = useState(null);
   const [textModal, setTextModal] = useState({ open: false, editing: null });
@@ -57,6 +58,8 @@ export default function CreateStoryScreen() {
   /** When set, picking a user replaces this mention overlay instead of adding a new one. */
   const [mentionEditingId, setMentionEditingId] = useState(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [caption, setCaption] = useState('');
+  const [toolsExpanded, setToolsExpanded] = useState(false);
   const videoRef = useRef(null);
   const previewSoundRef = useRef(null);
   const hasMusicOverlay = overlays.some((o) => o.type === 'music');
@@ -359,9 +362,10 @@ export default function CreateStoryScreen() {
     setSelectedOverlayId(null);
   }, []);
 
-  const submit = useCallback(async () => {
-    if (!media || !token) return;
+  const submit = useCallback(async (audienceChoice = 'public') => {
+    if (!media || !token || uploading) return;
     setUploading(true);
+    setPostingAudience(audienceChoice);
     try {
       // Strip transient fields like _measuredWidth.
       const cleanOverlays = overlays.map(({ _measuredWidth, _measuredHeight, ...rest }) => rest);
@@ -372,7 +376,7 @@ export default function CreateStoryScreen() {
         width: media.width,
         height: media.height,
         mimeType: media.mimeType,
-        audience,
+        audience: audienceChoice,
         overlays: cleanOverlays,
       }, token);
       router.replace('/(tabs)');
@@ -381,14 +385,17 @@ export default function CreateStoryScreen() {
       Alert.alert('Could not post story', msg);
     } finally {
       setUploading(false);
+      setPostingAudience(null);
     }
-  }, [media, token, router, audience, overlays]);
+  }, [media, token, router, overlays, uploading]);
 
   const close = () => router.back();
   const discard = () => {
     setMedia(null);
     setOverlays([]);
     setSelectedOverlayId(null);
+    setCaption('');
+    setToolsExpanded(false);
   };
 
   // ────────────────────────────────────────────────────────────────────
@@ -396,7 +403,8 @@ export default function CreateStoryScreen() {
   // ────────────────────────────────────────────────────────────────────
   if (media) {
     const statusTop = Platform.OS === 'ios' ? 54 : RNStatusBar.currentHeight ?? 24;
-    const bottomChromeClearance = Math.max(insets.bottom, 12) + 102;
+    const footerBottom = Math.max(insets.bottom, 12) + 8;
+    const avatarUrl = resolveAvatarUrl(user?.avatar || user?.image || user?.profile_picture);
 
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -416,8 +424,8 @@ export default function CreateStoryScreen() {
             <Video
               ref={videoRef}
               source={{ uri: media.uri }}
-              style={{ flex: 1 }}
-              resizeMode={ResizeMode.CONTAIN}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode={ResizeMode.COVER}
               shouldPlay
               isLooping
               isMuted={hasMusicOverlay}
@@ -426,8 +434,8 @@ export default function CreateStoryScreen() {
           ) : (
             <Image
               source={{ uri: media.uri }}
-              style={{ flex: 1 }}
-              resizeMode="contain"
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
             />
           )}
 
@@ -461,7 +469,7 @@ export default function CreateStoryScreen() {
           />
         </View>
 
-        {/* Editor chrome above native Video/Image (BlurView can be invisible on some Android builds). */}
+        {/* Editor chrome — Instagram / Facebook Stories layout */}
         {!drawingMode ? (
           <View
             pointerEvents="box-none"
@@ -469,187 +477,154 @@ export default function CreateStoryScreen() {
             style={[StyleSheet.absoluteFillObject, { zIndex: 1000, elevation: 1000 }]}
           >
             {/* Top-left: close */}
-            <View
-              style={{
-                position: 'absolute',
-                top: statusTop + 6,
-                left: 12,
-              }}
-            >
-              <EditorGlassButton onPress={discard} disabled={uploading} accessibilityLabel="Discard story">
-                <Ionicons name="close" size={24} color="#fff" />
-              </EditorGlassButton>
+            <View style={{ position: 'absolute', top: statusTop + 4, left: 14 }}>
+              <EditorToolButton onPress={discard} disabled={uploading} accessibilityLabel="Discard story">
+                <Ionicons name="close" size={28} color="#fff" />
+              </EditorToolButton>
             </View>
 
-            {/* Right rail: creative tools — vertically centered between close and bottom bar */}
+            {/* Top-right: vertical tool rail */}
             <View
               pointerEvents="box-none"
               style={{
                 position: 'absolute',
-                top: statusTop + 56,
-                right: 8,
-                bottom: bottomChromeClearance,
-                justifyContent: 'center',
-                alignItems: 'flex-end',
+                top: statusTop + 4,
+                right: 14,
+                alignItems: 'center',
+                gap: 10,
               }}
             >
-              <View
-                pointerEvents="box-none"
-                style={{
-                  maxWidth: 72,
-                  maxHeight: '100%',
-                  paddingVertical: 8,
-                  paddingHorizontal: 6,
-                  borderRadius: 28,
-                  backgroundColor: 'rgba(0,0,0,0.45)',
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: 'rgba(255,255,255,0.2)',
-                }}
+              <EditorToolButton
+                onPress={() => setTextModal({ open: true, editing: null })}
+                accessibilityLabel="Add text"
               >
-                <ScrollView
-                  style={{ maxHeight: '100%' }}
-                  contentContainerStyle={{
-                    alignItems: 'flex-end',
-                    gap: 11,
-                    paddingBottom: 4,
-                    flexGrow: 1,
-                    justifyContent: 'center',
-                  }}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                  bounces={false}
-                >
-            {overlays.length > 0 ? (
-              <EditorGlassButton onPress={undoLastOverlay} accessibilityLabel="Undo last">
-                <Ionicons name="arrow-undo" size={20} color="#fff" />
-              </EditorGlassButton>
-            ) : null}
+                <Text style={styles.toolAa}>Aa</Text>
+              </EditorToolButton>
 
-            <EditorGlassButton
-              onPress={() => setTextModal({ open: true, editing: null })}
-              accessibilityLabel="Add text"
-            >
-              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 17, letterSpacing: -0.5 }}>Aa</Text>
-            </EditorGlassButton>
+              <EditorToolButton onPress={() => setEmojiOpen(true)} accessibilityLabel="Add sticker">
+                <Ionicons name="happy-outline" size={26} color="#fff" />
+              </EditorToolButton>
 
-            <EditorGlassButton onPress={() => setEmojiOpen(true)} accessibilityLabel="Add emoji">
-              <Text style={{ fontSize: 22 }}>😊</Text>
-            </EditorGlassButton>
+              <EditorToolButton
+                onPress={() => setMusicOpen(true)}
+                accessibilityLabel="Add music"
+                active={hasMusicOverlay}
+              >
+                <Ionicons name="musical-notes-outline" size={26} color="#fff" />
+              </EditorToolButton>
 
-            <EditorGlassButton onPress={openMentionPicker} accessibilityLabel="Mention someone">
-              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 18 }}>@</Text>
-            </EditorGlassButton>
+              <EditorToolButton onPress={() => setDrawingMode(true)} accessibilityLabel="Draw">
+                <Ionicons name="sparkles-outline" size={26} color="#fff" />
+              </EditorToolButton>
 
-            <EditorGlassButton onPress={() => setDrawingMode(true)} accessibilityLabel="Draw">
-              <Ionicons name="pencil" size={20} color="#fff" />
-            </EditorGlassButton>
+              <EditorToolButton
+                onPress={() => setToolsExpanded((v) => !v)}
+                accessibilityLabel={toolsExpanded ? 'Hide more tools' : 'More tools'}
+              >
+                <Ionicons
+                  name={toolsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={26}
+                  color="#fff"
+                />
+              </EditorToolButton>
 
-            <EditorGlassButton
-              onPress={() => setMusicOpen(true)}
-              accessibilityLabel="Add music"
-              active={hasMusicOverlay}
-              activeTint="#1DB954"
-            >
-              <Ionicons
-                name="musical-notes"
-                size={20}
-                color={hasMusicOverlay ? '#000' : '#fff'}
-              />
-            </EditorGlassButton>
-                </ScrollView>
-              </View>
+              {toolsExpanded ? (
+                <>
+                  <EditorToolButton onPress={openMentionPicker} accessibilityLabel="Mention someone">
+                    <Text style={styles.toolMention}>@</Text>
+                  </EditorToolButton>
+                  {overlays.length > 0 ? (
+                    <EditorToolButton onPress={undoLastOverlay} accessibilityLabel="Undo last">
+                      <Ionicons name="arrow-undo" size={24} color="#fff" />
+                    </EditorToolButton>
+                  ) : null}
+                </>
+              ) : null}
             </View>
 
-            {/* Bottom: audience + Share — LTR row so Share stays visible in RTL locales */}
-            <View
+            {/* Caption input */}
+            {/* <View
               pointerEvents="box-none"
               style={{
                 position: 'absolute',
-                left: 0,
-                right: 0,
-                bottom: 0,
-                paddingBottom: Math.max(insets.bottom, 12) + 10,
-                paddingTop: 14,
-                paddingHorizontal: 14,
-                backgroundColor: 'rgba(8,8,10,0.94)',
-                borderTopLeftRadius: 18,
-                borderTopRightRadius: 18,
-                borderTopWidth: 2,
-                borderColor: 'rgba(255,200,1,0.35)',
+                left: 16,
+                right: 80,
+                bottom: footerBottom + 64,
               }}
             >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', direction: 'ltr' }}>
-            <Pressable
-              onPress={() => setAudience((a) => a === 'public' ? 'close_friends' : 'public')}
-              onLongPress={() => router.push('/settings/close-friends')}
-              delayLongPress={350}
-              disabled={uploading}
-              style={({ pressed }) => ({
-                flexShrink: 1,
-                maxWidth: '56%',
-                flexDirection: 'row', alignItems: 'center', gap: 8,
-                paddingHorizontal: 14, paddingVertical: 12,
-                borderRadius: 999,
-                backgroundColor: audience === 'close_friends'
-                  ? 'rgba(34,197,94,0.95)'
-                  : 'rgba(255,255,255,0.14)',
-                opacity: pressed ? 0.88 : 1,
-                borderWidth: 1.5,
-                borderColor: audience === 'close_friends' ? '#22c55e' : 'rgba(255,255,255,0.22)',
-              })}
-            >
-              <Ionicons
-                name={audience === 'close_friends' ? 'star' : 'globe-outline'}
-                size={16}
-                color="#fff"
+              <TextInput
+                value={caption}
+                onChangeText={setCaption}
+                placeholder="Add a caption..."
+                placeholderTextColor="rgba(255,255,255,0.75)"
+                multiline
+                maxLength={2200}
+                editable={!uploading}
+                style={styles.captionInput}
               />
-              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }} numberOfLines={1}>
-                {audience === 'close_friends' ? 'Close friends' : 'Everyone'}
-              </Text>
-              <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.75)" />
-            </Pressable>
+            </View> */}
 
-            <Pressable
-              onPress={submit}
-              disabled={uploading}
-              style={({ pressed }) => ({
-                flexShrink: 0,
-                minWidth: 136,
-                paddingVertical: 14,
-                paddingHorizontal: 20,
-                borderRadius: 999,
-                backgroundColor: '#ffc801',
-                opacity: pressed || uploading ? 0.82 : 1,
-                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                shadowColor: '#000',
-                shadowOpacity: 0.35,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 3 },
-                elevation: 10,
-                marginLeft: 10,
-              })}
-            >
-              {uploading ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <Ionicons name="paper-plane" size={20} color="#fff" />
-              )}
-              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16 }} numberOfLines={1}>
-                {uploading ? 'Posting…' : 'Share'}
-              </Text>
-            </Pressable>
-          </View>
-          {audience === 'close_friends' ? (
-            <Pressable
-              onPress={() => router.push('/settings/close-friends')}
-              hitSlop={6}
-              style={{ marginTop: 10, alignSelf: 'flex-start' }}
-            >
-              <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }}>
-                Edit close friends list
-              </Text>
-            </Pressable>
-          ) : null}
+            {/* Bottom: post actions */}
+            <View pointerEvents="box-none" style={[styles.postBar, { bottom: footerBottom }]}>
+              <Pressable
+                onPress={() => submit('public')}
+                disabled={uploading}
+                accessibilityLabel="Post to your stories"
+                style={({ pressed }) => [
+                  styles.audiencePill,
+                  pressed && !uploading && styles.pillPressed,
+                  uploading && postingAudience !== 'public' && styles.pillDisabled,
+                ]}
+              >
+                <View style={styles.pillRow}>
+                  {uploading && postingAudience === 'public' ? (
+                    <ActivityIndicator size="small" color="#fff" style={styles.pillSpinner} />
+                  ) : (
+                    <View style={styles.avatarWrap}>
+                      <View style={styles.avatarRing}>
+                        {avatarUrl ? (
+                          <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                        ) : (
+                          <View style={styles.avatarFallback}>
+                            <Ionicons name="person" size={16} color="#fff" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.avatarBadge}>
+                        <Image
+                          source={require('@/assets/images/icon.png')}
+                          style={styles.avatarBadgeImage}
+                        />
+                      </View>
+                    </View>
+                  )}
+                  <Text style={styles.audiencePillText} numberOfLines={1}>Your stories</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => submit('close_friends')}
+                onLongPress={() => router.push('/settings/close-friends')}
+                delayLongPress={350}
+                disabled={uploading}
+                accessibilityLabel="Post to close friends"
+                style={({ pressed }) => [
+                  styles.audiencePill,
+                  pressed && !uploading && styles.pillPressed,
+                  uploading && postingAudience !== 'close_friends' && styles.pillDisabled,
+                ]}
+              >
+                <View style={styles.pillRow}>
+                  {uploading && postingAudience === 'close_friends' ? (
+                    <ActivityIndicator size="small" color="#fff" style={styles.pillSpinner} />
+                  ) : (
+                    <View style={styles.closeFriendsIcon}>
+                      <Ionicons name="star" size={16} color="#fff" />
+                    </View>
+                  )}
+                  <Text style={styles.audiencePillText} numberOfLines={1}>Close Friends</Text>
+                </View>
+              </Pressable>
             </View>
           </View>
         ) : null}
@@ -790,34 +765,176 @@ export default function CreateStoryScreen() {
   );
 }
 
-/** Circular control for the story editor chrome (solid fill — BlurView is unreliable on some Android GPUs). */
-function EditorGlassButton({ children, onPress, disabled, active, activeTint, accessibilityLabel }) {
-  const tint = activeTint || '#ffc801';
+/** Semi-transparent circular tool button (Instagram Stories style). */
+function EditorToolButton({ children, onPress, disabled, active, accessibilityLabel }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityLabel={accessibilityLabel}
-      hitSlop={8}
-      style={({ pressed }) => ({
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: disabled ? 0.45 : (pressed ? 0.88 : 1),
-        transform: [{ scale: pressed ? 0.94 : 1 }],
-        borderWidth: active ? 2.5 : 2,
-        borderColor: active ? tint : 'rgba(255,255,255,0.88)',
-        backgroundColor: active ? tint : 'rgba(24,24,28,0.96)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.5,
-        shadowRadius: 3,
-        elevation: 14,
-      })}
+      hitSlop={6}
+      style={({ pressed }) => [
+        styles.toolButton,
+        active && styles.toolButtonActive,
+        disabled && styles.toolButtonDisabled,
+        pressed && !disabled && styles.toolButtonPressed,
+      ]}
     >
       {children}
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  toolButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  toolButtonActive: {
+    backgroundColor: 'rgba(29, 185, 84, 0.85)',
+  },
+  toolButtonDisabled: {
+    opacity: 0.45,
+  },
+  toolButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.95 }],
+  },
+  toolAa: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 21,
+    letterSpacing: -0.5,
+  },
+  toolMention: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 21,
+  },
+  captionInput: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+    paddingVertical: 0,
+    maxHeight: 72,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  postBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    width: '100%',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    direction: 'ltr',
+  },
+  audiencePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: '#262626',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 48,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  pillPressed: {
+    opacity: 0.88,
+  },
+  pillDisabled: {
+    opacity: 0.5,
+  },
+  pillSpinner: {
+    width: 32,
+    height: 32,
+  },
+  audiencePillText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  avatarWrap: {
+    width: 34,
+    height: 34,
+    position: 'relative',
+    flexShrink: 0,
+  },
+  avatarRing: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarBadge: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#1877F2',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 0, 0, 0.55)',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarBadgeImage: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+  },
+  closeFriendsIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1ED760',
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  sendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3897F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginLeft: 8,
+  },
+  sendButtonPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.96 }],
+  },
+});
