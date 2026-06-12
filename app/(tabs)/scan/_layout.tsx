@@ -20,6 +20,14 @@ export default function ScanLayout() {
           animation: 'slide_from_right',
         }}
       />
+      <Stack.Screen
+        name="participant/[participantId]"
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+          animation: 'slide_from_right',
+        }}
+      />
     </Stack>
   );
 }

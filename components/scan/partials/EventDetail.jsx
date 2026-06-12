@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
@@ -15,7 +15,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import {
   canScanEvent,
   formatEventCapacity,
-  formatEventDate,
   getEventCoverUrl,
   getEventDisplayName,
   getEventStatusLabel,
@@ -47,23 +46,6 @@ function StatusBadge({ status }) {
   );
 }
 
-function InfoRow({ icon, label, value }) {
-  return (
-    <View className="flex-row items-center gap-3 py-3">
-      <View className="w-10 h-10 rounded-xl bg-alpha/15 items-center justify-center">
-        <Ionicons name={icon} size={18} color={Colors.alpha} />
-      </View>
-      <View className="flex-1 min-w-0">
-        <Text className="text-[11px] font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
-          {label}
-        </Text>
-        <Text className="text-sm font-semibold text-beta dark:text-light mt-0.5" numberOfLines={2}>
-          {value}
-        </Text>
-      </View>
-    </View>
-  );
-}
 
 function SectionCard({ children, className = '' }) {
   return (
@@ -126,6 +108,15 @@ export default function EventDetail() {
   const [error, setError] = useState(null);
   const [participantSearch, setParticipantSearch] = useState('');
   const skipFocusRefresh = useRef(true);
+  const scrollViewRef = useRef(null);
+
+  // Scroll to bottom when the participant search input is focused so the
+  // keyboard never covers it — more reliable than KeyboardAvoidingView alone.
+  const handleSearchFocus = useCallback(() => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 320);
+  }, []);
 
   const filteredParticipants = useMemo(() => {
     const q = participantSearch.trim().toLowerCase();
@@ -190,13 +181,26 @@ export default function EventDetail() {
     });
   };
 
+  const openParticipant = (participant) => {
+    router.push({
+      pathname: '/(tabs)/scan/participant/[participantId]',
+      params: {
+        participantId: String(participant.id),
+        eventId: String(eventId),
+      },
+    });
+  };
+
   if (!userHasAdminRole(user)) {
     return <AccessDenied />;
   }
 
   return (
     <AppLayout showNavbar={false}>
-      <View className="flex-1 bg-light dark:bg-dark">
+      <KeyboardAvoidingView
+        className="flex-1 bg-light dark:bg-dark"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
           <Pressable
             onPress={() => router.back()}
@@ -208,9 +212,13 @@ export default function EventDetail() {
             <Text className="text-xs font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
               Scan
             </Text>
-            <Text className="text-base font-bold text-beta dark:text-light" numberOfLines={1}>
-              Event details
-            </Text>
+            {loading ? (
+              <Skeleton width={160} height={16} borderRadius={6} isDark={isDark} />
+            ) : (
+              <Text className="text-base font-bold text-beta dark:text-light" numberOfLines={1}>
+                {title}
+              </Text>
+            )}
           </View>
           {!loading && !error && (
             <Pressable
@@ -257,9 +265,12 @@ export default function EventDetail() {
           </View>
         ) : (
           <ScrollView
+            ref={scrollViewRef}
             className="flex-1"
             contentContainerClassName="p-4 pb-10 gap-4"
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -277,30 +288,6 @@ export default function EventDetail() {
                 </View>
               ) : null}
             </View>
-
-            <SectionCard className="p-4">
-              <Text className="text-xl font-bold text-beta dark:text-light leading-tight">{title}</Text>
-
-              <View className="mt-1">
-                <InfoRow icon="calendar-outline" label="Date & time" value={formatEventDate(event)} />
-                {event?.location ? (
-                  <>
-                    <View className="h-px bg-beta/6 dark:bg-light/6 ml-[52px]" />
-                    <InfoRow icon="location-outline" label="Location" value={event.location} />
-                  </>
-                ) : null}
-                {/* {capacityLabel ? (
-                  <>
-                    <View className="h-px bg-beta/6 dark:bg-light/6 ml-[52px]" />
-                    <InfoRow
-                      icon="people-outline"
-                      label="Capacity"
-                      value={`${capacityLabel} registered`}
-                    />
-                  </>
-                ) : null} */}
-              </View>
-            </SectionCard>
 
             {!scannable ? (
               <SectionCard className="p-4">
@@ -375,6 +362,7 @@ export default function EventDetail() {
                   <TextInput
                     value={participantSearch}
                     onChangeText={setParticipantSearch}
+                    onFocus={handleSearchFocus}
                     placeholder="Search by name or email…"
                     placeholderTextColor={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
                     className="flex-1 min-h-10 py-2 text-sm text-beta dark:text-light"
@@ -391,6 +379,7 @@ export default function EventDetail() {
 
               <ParticipantsList
                 participants={filteredParticipants}
+                onParticipantPress={openParticipant}
                 emptyMessage={
                   participantSearch
                     ? `No participants match "${participantSearch}".`
@@ -400,7 +389,7 @@ export default function EventDetail() {
             </SectionCard>
           </ScrollView>
         )}
-      </View>
+      </KeyboardAvoidingView>
     </AppLayout>
   );
 }

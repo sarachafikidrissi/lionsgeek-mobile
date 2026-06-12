@@ -1,8 +1,8 @@
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 
-export default function ParticipantsList({ participants = [], emptyMessage }) {
+export default function ParticipantsList({ participants = [], emptyMessage, onParticipantPress }) {
   if (!participants.length) {
     return (
       <View className="items-center py-6 mt-2">
@@ -27,9 +27,11 @@ export default function ParticipantsList({ participants = [], emptyMessage }) {
 
       <View className="rounded-xl overflow-hidden">
         {participants.map((participant, index) => (
-          <View
+          <Pressable
             key={participant.id}
-            className={`flex-row items-center gap-3 px-1 py-3 ${
+            onPress={() => onParticipantPress?.(participant)}
+            disabled={!onParticipantPress}
+            className={`flex-row items-center gap-3 px-1 py-3 active:opacity-80 ${
               index < participants.length - 1 ? 'border-b border-beta/6 dark:border-light/6' : ''
             }`}
           >
@@ -56,7 +58,10 @@ export default function ParticipantsList({ participants = [], emptyMessage }) {
                 <Text className="text-[10px] font-semibold text-beta/50 dark:text-light/50">Not yet</Text>
               </View>
             )}
-          </View>
+            {onParticipantPress ? (
+              <Ionicons name="chevron-forward" size={16} color={Colors.alpha} />
+            ) : null}
+          </Pressable>
         ))}
       </View>
     </View>

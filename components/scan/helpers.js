@@ -175,3 +175,106 @@ export function mapValidationMessage(message) {
   if (normalized.includes('no such participant')) return 'error';
   return 'info';
 }
+
+export function normalizeParticipantEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+export function participantEmailsMatch(a, b) {
+  const left = normalizeParticipantEmail(a);
+  const right = normalizeParticipantEmail(b);
+  return Boolean(left) && left === right;
+}
+
+export function findParticipantById(participants, participantId) {
+  if (!Array.isArray(participants) || participantId == null) return null;
+  return participants.find((p) => String(p.id) === String(participantId)) ?? null;
+}
+
+function formatParticipantTimestamp(value) {
+  if (!value) return null;
+  const parsed = typeof value === 'string' ? parseISO(value) : new Date(value);
+  if (!isValid(parsed)) return String(value);
+  return format(parsed, 'MMM d, yyyy · HH:mm');
+}
+
+// Extra participant fields shown on the detail screen (unknown keys from API are ignored).
+const PARTICIPANT_DETAIL_FIELDS = [
+  { key: 'phone', label: 'Phone' },
+  { key: 'tel', label: 'Phone' },
+  { key: 'mobile', label: 'Mobile' },
+  { key: 'code', label: 'Invitation code' },
+  { key: 'company', label: 'Company' },
+  { key: 'organization', label: 'Organization' },
+  { key: 'job_title', label: 'Job title' },
+  { key: 'city', label: 'City' },
+  { key: 'address', label: 'Address' },
+  { key: 'created_at', label: 'Registered on', format: formatParticipantTimestamp },
+  { key: 'registered_at', label: 'Registered on', format: formatParticipantTimestamp },
+  { key: 'updated_at', label: 'Last updated', format: formatParticipantTimestamp },
+];
+
+export function getParticipantDetailRows(participant) {
+  if (!participant || typeof participant !== 'object') return [];
+
+  const rows = [];
+  const seenLabels = new Set();
+
+  PARTICIPANT_DETAIL_FIELDS.forEach(({ key, label, format: formatValue }) => {
+    const raw = participant[key];
+    if (raw == null || raw === '') return;
+    if (seenLabels.has(label)) return;
+
+    const value = formatValue ? formatValue(raw) : String(raw);
+    if (!value) return;
+
+    rows.push({ label, value });
+    seenLabels.add(label);
+  });
+
+  return rows;
+}
+
+const OTHER_EVENTS_BATCH_SIZE = 4;
+
+// Loads every event and checks participant lists for the same email.
+export async function fetchParticipantOtherRegistrations(email, excludeEventId) {
+  const normalizedEmail = normalizeParticipantEmail(email);
+  if (!normalizedEmail) return [];
+
+  const listResponse = await EventsInfoAPI.getEvents();
+  const events = normalizeEvents(listResponse?.data ?? []).filter(
+    (event) => String(event.id) !== String(excludeEventId)
+  );
+
+  const matches = [];
+
+  for (let index = 0; index < events.length; index += OTHER_EVENTS_BATCH_SIZE) {
+    const batch = events.slice(index, index + OTHER_EVENTS_BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map(async (summary) => {
+        try {
+          const response = await EventsInfoAPI.getEvent(summary.id);
+          const event = response?.data?.event ?? summary;
+          const participants = Array.isArray(response?.data?.participants)
+            ? response.data.participants
+            : [];
+          const registration = participants.find((p) => participantEmailsMatch(p.email, normalizedEmail));
+          if (!registration) return null;
+
+          return { event, registration };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    matches.push(...batchResults.filter(Boolean));
+  }
+
+  return matches.sort((a, b) => {
+    const da = getEventDate(a.event)?.getTime() ?? 0;
+    const db = getEventDate(b.event)?.getTime() ?? 0;
+    return db - da;
+  });
+}
