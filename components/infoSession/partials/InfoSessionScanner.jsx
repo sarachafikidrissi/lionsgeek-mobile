@@ -8,7 +8,7 @@ import Skeleton from '@/components/ui/Skeleton';
 import ScanResultOverlay from '@/components/events/partials/ScanResultModal';
 import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { mapValidationMessage } from '@/components/infoSession/helpers';
+import { mapValidationMessage, validateInfoSessionQrScan } from '@/components/infoSession/helpers';
 
 const DUPLICATE_SCAN_MS = 2500;
 const CORNER_SIZE = 36;
@@ -150,27 +150,15 @@ export default function InfoSessionScanner() {
     lastScanRef.current = { data, at: now };
 
     try {
-      let qrData;
-      try {
-        qrData = JSON.parse(data);
-      } catch {
-        showFailure('Invalid QR code', 'This QR code is not a valid session invitation.');
+      const result = await validateInfoSessionQrScan(data, id);
+
+      if (!result.ok) {
+        showFailure(result.title, result.message);
         return;
       }
 
-      if (!qrData.email || qrData.code === undefined) {
-        showFailure('Invalid QR code', 'Missing participant information in this QR code.');
-        return;
-      }
-
-      const response = await InfoSessionAPI.validateInvitation({
-        email: qrData.email,
-        code: String(qrData.code),
-        sessionId: Number(id),
-      });
-
-      const message = response?.data?.message || 'Scan processed.';
-      const profile = response?.data?.profile;
+      const message = result.response?.data?.message || 'Scan processed.';
+      const profile = result.response?.data?.profile;
       setLastResult(buildScanResult(message, profile));
     } catch (error) {
       console.error('[SCAN] Info session validation error:', error);

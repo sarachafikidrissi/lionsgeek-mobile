@@ -1,4 +1,5 @@
 import { format, isValid, parseISO, startOfDay } from 'date-fns';
+import { InfoSessionAPI } from '@/api/infoSessionSection';
 
 export function getSessionDate(session) {
   if (!session?.start_date) return null;
@@ -167,4 +168,95 @@ export function mapValidationMessage(message) {
   if (normalized.includes('another session')) return 'error';
   if (normalized.includes('no such participant')) return 'error';
   return 'info';
+}
+
+// lionsgeek.ma emails encode { id, email }; the API validates with email + participant.code.
+export function parseInfoSessionQrPayload(raw) {
+  if (raw == null) return null;
+
+  const text = String(raw).trim();
+  if (!text) return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const email = typeof parsed.email === 'string' ? parsed.email.trim() : '';
+  const participantIdRaw = parsed.id ?? parsed.participant_id ?? parsed.participantId ?? null;
+  const participantId =
+    participantIdRaw != null && participantIdRaw !== '' ? Number(participantIdRaw) : null;
+  const codeRaw = parsed.code ?? parsed.invitation_code ?? null;
+  const code = codeRaw != null && codeRaw !== '' ? String(codeRaw) : null;
+
+  if (!email && (participantId == null || Number.isNaN(participantId))) return null;
+
+  return {
+    email: email || null,
+    participantId: Number.isNaN(participantId) ? null : participantId,
+    code,
+  };
+}
+
+export async function validateInfoSessionQrScan(rawPayload, sessionId) {
+  const qr = parseInfoSessionQrPayload(rawPayload);
+  if (!qr) {
+    return {
+      ok: false,
+      title: 'Invalid QR code',
+      message: 'This QR code is not a valid session invitation.',
+    };
+  }
+
+  let email = qr.email;
+  let code = qr.code;
+
+  // Current lionsgeek.ma PDF QR: { id, email } — resolve invitation code from profile.
+  if (qr.participantId != null && !code) {
+    const profileResponse = await InfoSessionAPI.getProfileData(qr.participantId);
+    const profile = profileResponse?.data;
+
+    if (!profile) {
+      return {
+        ok: false,
+        title: 'Not registered',
+        message: 'Participant not found.',
+      };
+    }
+
+    email = profile.email;
+    code = profile.code != null && profile.code !== '' ? String(profile.code) : null;
+
+    if (
+      qr.email &&
+      email &&
+      String(qr.email).trim().toLowerCase() !== String(email).trim().toLowerCase()
+    ) {
+      return {
+        ok: false,
+        title: 'Invalid QR code',
+        message: 'QR code data does not match the participant record.',
+      };
+    }
+  }
+
+  if (!email || !code) {
+    return {
+      ok: false,
+      title: 'Invalid QR code',
+      message: 'Missing participant information in this QR code.',
+    };
+  }
+
+  const response = await InfoSessionAPI.validateInvitation({
+    email,
+    code,
+    sessionId: Number(sessionId),
+  });
+
+  return { ok: true, response };
 }
