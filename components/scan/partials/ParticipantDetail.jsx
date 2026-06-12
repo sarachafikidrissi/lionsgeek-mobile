@@ -17,6 +17,7 @@ import {
   getEventDisplayName,
   getEventStatusLabel,
   getParticipantDetailRows,
+  isSameEventId,
 } from '@/components/scan/helpers';
 
 function SectionCard({ children, className = '' }) {
@@ -45,13 +46,16 @@ function DetailRow({ icon, label, value }) {
   );
 }
 
-function OtherEventRow({ item, isDark }) {
+function OtherEventRow({ item, isDark, onPress }) {
   const title = getEventDisplayName(item.event?.name);
   const status = getEventStatusLabel(item.event);
   const scanned = Boolean(item.registration?.is_visited);
 
   return (
-    <View className="py-3 border-b border-beta/6 dark:border-light/6 last:border-b-0">
+    <Pressable
+      onPress={onPress}
+      className="py-3 border-b border-beta/6 dark:border-light/6 last:border-b-0 active:opacity-80"
+    >
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1 min-w-0">
           <Text className="text-sm font-semibold text-beta dark:text-light" numberOfLines={2}>
@@ -61,19 +65,22 @@ function OtherEventRow({ item, isDark }) {
             {formatEventDate(item.event)}
           </Text>
         </View>
-        {status === 'Today' ? (
-          <View className="bg-good/15 px-2 py-1 rounded-full">
-            <Text className="text-[10px] font-bold text-good">{status}</Text>
-          </View>
-        ) : status === 'Upcoming' ? (
-          <View className="bg-alpha/15 px-2 py-1 rounded-full">
-            <Text className="text-[10px] font-bold text-alpha">{status}</Text>
-          </View>
-        ) : (
-          <View className="bg-beta/10 dark:bg-light/10 px-2 py-1 rounded-full">
-            <Text className="text-[10px] font-bold text-beta/55 dark:text-light/55">{status}</Text>
-          </View>
-        )}
+        <View className="flex-row items-center gap-1">
+          {status === 'Today' ? (
+            <View className="bg-good/15 px-2 py-1 rounded-full">
+              <Text className="text-[10px] font-bold text-good">{status}</Text>
+            </View>
+          ) : status === 'Upcoming' ? (
+            <View className="bg-alpha/15 px-2 py-1 rounded-full">
+              <Text className="text-[10px] font-bold text-alpha">{status}</Text>
+            </View>
+          ) : (
+            <View className="bg-beta/10 dark:bg-light/10 px-2 py-1 rounded-full">
+              <Text className="text-[10px] font-bold text-beta/55 dark:text-light/55">{status}</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={16} color={Colors.alpha} />
+        </View>
       </View>
       <View className="flex-row items-center gap-2 mt-2">
         {scanned ? (
@@ -88,13 +95,15 @@ function OtherEventRow({ item, isDark }) {
           </View>
         )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 export default function ParticipantDetail() {
   const { user } = useAppContext();
-  const { eventId, participantId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const eventId = Array.isArray(params.eventId) ? params.eventId[0] : params.eventId;
+  const participantId = Array.isArray(params.participantId) ? params.participantId[0] : params.participantId;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -107,6 +116,15 @@ export default function ParticipantDetail() {
   const [error, setError] = useState(null);
 
   const detailRows = useMemo(() => getParticipantDetailRows(participant), [participant]);
+
+  const otherEventsOnly = useMemo(
+    () => otherRegistrations.filter((item) => !isSameEventId(item.event?.id, eventId)),
+    [otherRegistrations, eventId]
+  );
+
+  const openOtherEvent = (otherEventId) => {
+    router.push(`/(tabs)/scan/${otherEventId}`);
+  };
 
   const loadParticipant = useCallback(
     async (isRefresh = false) => {
@@ -279,7 +297,7 @@ export default function ParticipantDetail() {
                 </View>
                 {!loadingOther ? (
                   <View className="bg-alpha/15 px-2.5 py-1 rounded-full">
-                    <Text className="text-xs font-bold text-beta dark:text-light">{otherRegistrations.length}</Text>
+                    <Text className="text-xs font-bold text-beta dark:text-light">{otherEventsOnly.length}</Text>
                   </View>
                 ) : null}
               </View>
@@ -294,7 +312,7 @@ export default function ParticipantDetail() {
                     <Skeleton key={index} width="100%" height={72} borderRadius={12} isDark={isDark} />
                   ))}
                 </View>
-              ) : otherRegistrations.length === 0 ? (
+              ) : otherEventsOnly.length === 0 ? (
                 <View className="items-center py-6">
                   <Ionicons name="calendar-outline" size={32} color={Colors.alpha} />
                   <Text className="text-sm font-semibold text-beta dark:text-light mt-3">No other events</Text>
@@ -304,8 +322,13 @@ export default function ParticipantDetail() {
                 </View>
               ) : (
                 <View>
-                  {otherRegistrations.map((item) => (
-                    <OtherEventRow key={String(item.event?.id)} item={item} isDark={isDark} />
+                  {otherEventsOnly.map((item) => (
+                    <OtherEventRow
+                      key={String(item.event?.id)}
+                      item={item}
+                      isDark={isDark}
+                      onPress={() => openOtherEvent(item.event?.id)}
+                    />
                   ))}
                 </View>
               )}

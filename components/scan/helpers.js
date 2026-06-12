@@ -191,6 +191,11 @@ export function findParticipantById(participants, participantId) {
   return participants.find((p) => String(p.id) === String(participantId)) ?? null;
 }
 
+export function isSameEventId(a, b) {
+  if (a == null || b == null) return false;
+  return String(a).trim() === String(b).trim();
+}
+
 function formatParticipantTimestamp(value) {
   if (!value) return null;
   const parsed = typeof value === 'string' ? parseISO(value) : new Date(value);
@@ -244,7 +249,7 @@ export async function fetchParticipantOtherRegistrations(email, excludeEventId) 
 
   const listResponse = await EventsInfoAPI.getEvents();
   const events = normalizeEvents(listResponse?.data ?? []).filter(
-    (event) => String(event.id) !== String(excludeEventId)
+    (event) => !isSameEventId(event.id, excludeEventId)
   );
 
   const matches = [];
@@ -253,9 +258,13 @@ export async function fetchParticipantOtherRegistrations(email, excludeEventId) 
     const batch = events.slice(index, index + OTHER_EVENTS_BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (summary) => {
+        if (isSameEventId(summary.id, excludeEventId)) return null;
+
         try {
           const response = await EventsInfoAPI.getEvent(summary.id);
           const event = response?.data?.event ?? summary;
+          if (isSameEventId(event.id, excludeEventId)) return null;
+
           const participants = Array.isArray(response?.data?.participants)
             ? response.data.participants
             : [];
@@ -272,7 +281,9 @@ export async function fetchParticipantOtherRegistrations(email, excludeEventId) 
     matches.push(...batchResults.filter(Boolean));
   }
 
-  return matches.sort((a, b) => {
+  const withoutCurrent = matches.filter((item) => !isSameEventId(item.event?.id, excludeEventId));
+
+  return withoutCurrent.sort((a, b) => {
     const da = getEventDate(a.event)?.getTime() ?? 0;
     const db = getEventDate(b.event)?.getTime() ?? 0;
     return db - da;
