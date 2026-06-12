@@ -11,6 +11,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
 import API from '@/api';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -50,6 +51,7 @@ export default function TabLayout() {
   const { user } = useAppContext();
   const userRoles = user?.roles || [];
   const isAdmin = userRoles.some(r => ['admin', 'coach'].includes(r?.toLowerCase?.() || r));
+  const isStrictAdmin = userHasAdminRole(user);
 
   // Map SF Symbols icon names to Ionicons names for cross-platform support
   const getIconName = (sfSymbolName, focused = false) => {
@@ -64,17 +66,20 @@ export default function TabLayout() {
       "person.fill": focused ? "person" : "person-outline",
       "magnifyingglass": focused ? "search" : "search-outline",
       "bell.fill": focused ? "notifications" : "notifications-outline",
+      "qr-code": focused ? "qr-code" : "qr-code-outline",
+      "school": focused ? "school" : "school-outline",
     };
     return iconMap[sfSymbolName] || sfSymbolName;
   };
 
   const tabScreen = [
-    { route: "index", name: "Home", icon: "house.fill", showTab: true, roles: [] }, // Everyone
-    { route: "reservations", name: "Reservations", icon: "calendar", showTab: true, roles: [] }, // Everyone
-    { route: "training", name: "Training", icon: "school", showTab: true, roles: [] }, // Everyone
-    { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill", showTab: true, roles: [] },
-    { route: "profile", name: "Profile", icon: "person.fill", showTab: true, roles: [] }, // Everyone
-  ].filter(screen => screen.showTab)
+    { route: "index", name: "Home", icon: "house.fill" },
+    { route: "reservations", name: "Reservations", icon: "calendar" },
+    { route: "training", name: "Training", icon: "school" },
+    { route: "scan", name: "Scan", icon: "qr-code", adminOnly: true },
+    { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill" },
+    { route: "profile", name: "Profile", icon: "person.fill" },
+  ];
 
   const hiddenScreens = [
     // hado mo2a9atan hna
@@ -124,6 +129,7 @@ export default function TabLayout() {
           options={{
             headerShown: false,
             title: screen.name,
+            href: screen.adminOnly && !isStrictAdmin ? null : undefined,
             ...(screen.route === 'profile'
               ? {
                   // Tabs keep screens mounted; if we previously opened someone via
@@ -173,7 +179,6 @@ export default function TabLayout() {
                 />
               );
             },
-            tabBarStyle: screen.showTab ? undefined : { display: 'none' },
           }}
         />
       ))}
