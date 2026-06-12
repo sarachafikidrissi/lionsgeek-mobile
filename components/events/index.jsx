@@ -3,10 +3,10 @@ import { View, Text } from 'react-native';
 import { useAppContext } from '@/context';
 import { userHasAdminRole } from '@/components/helpers/helpers';
 import AppLayout from '@/components/layout/AppLayout';
-import ScanTabBar from '@/components/scan/partials/ScanTabBar';
-import EventsTab from '@/components/scan/partials/EventsTab';
-import InfoSessionTab from '@/components/scan/partials/InfoSessionTab';
-import AccessDenied from '@/components/scan/partials/AccessDenied';
+import ScanTabBar from '@/components/events/partials/ScanTabBar';
+import EventsTab from '@/components/events/partials/EventsTab';
+import InfoSessionTab from '@/components/events/partials/InfoSessionTab';
+import AccessDenied from '@/components/events/partials/AccessDenied';
 
 export default function ScanScreen() {
   const { user } = useAppContext();

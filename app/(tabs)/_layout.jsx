@@ -75,7 +75,7 @@ export default function TabLayout() {
     { route: "index", name: "Home", icon: "house.fill" },
     { route: "reservations", name: "Reservations", icon: "calendar" },
     { route: "training", name: "Training", icon: "school" },
-    { route: "scan", name: "Scan", icon: "qr-code", adminOnly: true },
+    { route: "events", name: "Events", icon: "qr-code", adminOnly: true },
     { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill" },
     { route: "profile", name: "Profile", icon: "person.fill" },
   ];

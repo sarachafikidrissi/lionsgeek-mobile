@@ -6,7 +6,7 @@ import { useAppContext } from '@/context';
 import { userHasAdminRole } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
-import AccessDenied from '@/components/scan/partials/AccessDenied';
+import AccessDenied from '@/components/events/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -18,7 +18,7 @@ import {
   getEventStatusLabel,
   getParticipantDetailRows,
   isSameEventId,
-} from '@/components/scan/helpers';
+} from '@/components/events/helpers';
 
 function SectionCard({ children, className = '' }) {
   return (
@@ -103,7 +103,7 @@ export default function ParticipantDetail() {
   const { user } = useAppContext();
   const params = useLocalSearchParams();
   const eventId = Array.isArray(params.eventId) ? params.eventId[0] : params.eventId;
-  const participantId = Array.isArray(params.participantId) ? params.participantId[0] : params.participantId;
+  const participantId = Array.isArray(params.id) ? params.id[0] : params.id;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -123,7 +123,7 @@ export default function ParticipantDetail() {
   );
 
   const openOtherEvent = (otherEventId) => {
-    router.push(`/(tabs)/scan/${otherEventId}`);
+    router.push(`/(tabs)/events/${otherEventId}`);
   };
 
   const loadParticipant = useCallback(

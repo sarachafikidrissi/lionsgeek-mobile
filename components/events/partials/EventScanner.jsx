@@ -5,9 +5,9 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import Skeleton from '@/components/ui/Skeleton';
-import ScanResultOverlay from '@/components/scan/partials/ScanResultModal';
+import ScanResultOverlay from '@/components/events/partials/ScanResultModal';
 import { Colors } from '@/constants/Colors';
-import { getEventDisplayName, mapValidationMessage } from '@/components/scan/helpers';
+import { getEventDisplayName, mapValidationMessage } from '@/components/events/helpers';
 
 const DUPLICATE_SCAN_MS = 2500;
 const CORNER_SIZE = 36;
@@ -81,7 +81,8 @@ function ScanFrameCorner({ position }) {
 }
 
 export default function EventScanner() {
-  const { eventId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
@@ -91,16 +92,16 @@ export default function EventScanner() {
 
   useEffect(() => {
     const loadEvent = async () => {
-      if (!eventId) return;
+      if (!id) return;
       try {
-        const response = await EventsInfoAPI.getEvent(eventId);
+        const response = await EventsInfoAPI.getEvent(id);
         setEventTitle(getEventDisplayName(response?.data?.event?.name));
       } catch {
         setEventTitle('Event');
       }
     };
     loadEvent();
-  }, [eventId]);
+  }, [id]);
 
   const resetScanner = useCallback(() => {
     scanLockRef.current = false;
@@ -112,12 +113,12 @@ export default function EventScanner() {
     setLastResult(null);
     resetScanner();
 
-    if (eventId) {
-      router.replace(`/(tabs)/scan/${eventId}`);
+    if (id) {
+      router.replace(`/(tabs)/events/${id}`);
     } else {
       router.back();
     }
-  }, [eventId, resetScanner]);
+  }, [id, resetScanner]);
 
   useFocusEffect(
     useCallback(() => {
@@ -132,7 +133,7 @@ export default function EventScanner() {
   }, []);
 
   const handleBarCodeScanned = async ({ data }) => {
-    if (scanLockRef.current || processing || !eventId) return;
+    if (scanLockRef.current || processing || !id) return;
 
     const now = Date.now();
     if (lastScanRef.current.data === data && now - lastScanRef.current.at < DUPLICATE_SCAN_MS) {
@@ -160,7 +161,7 @@ export default function EventScanner() {
       const response = await EventsInfoAPI.validateEventInvitation({
         email: qrData.email,
         code: Number(qrData.code),
-        id: Number(eventId),
+        id: Number(id),
       });
 
       const message = response?.data?.message || 'Scan processed.';

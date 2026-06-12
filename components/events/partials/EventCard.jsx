@@ -1,12 +1,12 @@
 import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import EventCoverImage from '@/components/scan/partials/EventCoverImage';
+import EventCoverImage from '@/components/events/partials/EventCoverImage';
 import {
   formatEventDate,
   getEventCoverUrl,
   getEventDisplayName,
   getEventStatusLabel,
-} from '@/components/scan/helpers';
+} from '@/components/events/helpers';
 
 export default function EventCard({ event, onPress }) {
   const title = getEventDisplayName(event?.name);

@@ -6,10 +6,10 @@ import { useAppContext } from '@/context';
 import { userHasAdminRole } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
-import AccessDenied from '@/components/scan/partials/AccessDenied';
+import AccessDenied from '@/components/events/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
-import ParticipantsList from '@/components/scan/partials/ParticipantsList';
-import EventCoverImage from '@/components/scan/partials/EventCoverImage';
+import ParticipantsList from '@/components/events/partials/ParticipantsList';
+import EventCoverImage from '@/components/events/partials/EventCoverImage';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
@@ -20,7 +20,7 @@ import {
   getEventStatusLabel,
   getEventTotalCapacity,
   getParticipantCounts,
-} from '@/components/scan/helpers';
+} from '@/components/events/helpers';
 
 function StatusBadge({ status }) {
   if (status === 'Today') {
@@ -97,7 +97,8 @@ function DetailSkeleton({ isDark }) {
 
 export default function EventDetail() {
   const { user } = useAppContext();
-  const { eventId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -130,13 +131,13 @@ export default function EventDetail() {
 
   const fetchEvent = useCallback(
     async (isRefresh = false) => {
-      if (!eventId) return;
+      if (!id) return;
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
 
       try {
-        const response = await EventsInfoAPI.getEvent(eventId);
+        const response = await EventsInfoAPI.getEvent(id);
         setEvent(response?.data?.event ?? null);
         setParticipants(Array.isArray(response?.data?.participants) ? response.data.participants : []);
       } catch (err) {
@@ -147,7 +148,7 @@ export default function EventDetail() {
         setRefreshing(false);
       }
     },
-    [eventId]
+    [id]
   );
 
   useEffect(() => {
@@ -176,17 +177,17 @@ export default function EventDetail() {
 
   const openScanner = () => {
     router.push({
-      pathname: '/(tabs)/scan/scanner',
-      params: { eventId: String(eventId) },
+      pathname: '/(tabs)/events/scanner',
+      params: { id: String(id) },
     });
   };
 
   const openParticipant = (participant) => {
     router.push({
-      pathname: '/(tabs)/scan/participant/[participantId]',
+      pathname: '/(tabs)/events/participant/[id]',
       params: {
-        participantId: String(participant.id),
-        eventId: String(eventId),
+        id: String(participant.id),
+        eventId: String(id),
       },
     });
   };

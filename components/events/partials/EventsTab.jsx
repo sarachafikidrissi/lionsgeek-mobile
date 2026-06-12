@@ -4,13 +4,13 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import Skeleton from '@/components/ui/Skeleton';
-import EventCard from '@/components/scan/partials/EventCard';
+import EventCard from '@/components/events/partials/EventCard';
 import {
   filterEventsByName,
   normalizeEvents,
   resolveEventsError,
   sortEventsByDate,
-} from '@/components/scan/helpers';
+} from '@/components/events/helpers';
 
 export default function EventsTab() {
   const [events, setEvents] = useState([]);
@@ -48,7 +48,7 @@ export default function EventsTab() {
   );
 
   const openEvent = (eventId) => {
-    router.push(`/(tabs)/scan/${eventId}`);
+    router.push(`/(tabs)/events/${eventId}`);
   };
 
   const toggleSortOrder = () => {
