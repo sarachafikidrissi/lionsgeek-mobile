@@ -12,11 +12,14 @@ export default function EventCard({ event, onPress }) {
   const title = getEventDisplayName(event?.name);
   const coverUrl = getEventCoverUrl(event?.cover);
   const statusLabel = getEventStatusLabel(event);
+  const isPast = statusLabel === 'Past';
 
   return (
     <Pressable
       onPress={onPress}
-      className="bg-light dark:bg-dark border border-beta/10 dark:border-light/10 rounded-2xl overflow-hidden mb-3 active:opacity-90"
+      className={`bg-light dark:bg-dark border border-beta/10 dark:border-light/10 rounded-2xl overflow-hidden mb-3 active:opacity-90 ${
+        isPast ? 'opacity-50' : 'opacity-100'
+      }`}
     >
       <EventCoverImage uri={coverUrl} height={128} />
 
