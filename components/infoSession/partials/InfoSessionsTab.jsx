@@ -2,41 +2,41 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import EventsInfoAPI from '@/api/eventsInfoSection';
+import InfoSessionAPI from '@/api/infoSessionSection';
 import { getAccentFillColor, getAccentIconColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import Skeleton from '@/components/ui/Skeleton';
-import EventCard from '@/components/events/partials/EventCard';
+import InfoSessionCard from '@/components/infoSession/partials/InfoSessionCard';
 import {
-  filterEventsByName,
-  normalizeEvents,
-  resolveEventsError,
-  sortEventsByDate,
-} from '@/components/events/helpers';
+  filterSessionsByName,
+  normalizeInfoSessions,
+  resolveInfoSessionError,
+  sortSessionsByDate,
+} from '@/components/infoSession/helpers';
 
-export default function EventsTab() {
+export default function InfoSessionsTab() {
   const isDark = useColorScheme() === 'dark';
   const accentIcon = getAccentIconColor(isDark);
   const accentFill = getAccentFillColor(isDark);
-  const [events, setEvents] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  const fetchEvents = useCallback(async (isRefresh = false) => {
+  const fetchSessions = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
 
     try {
-      const response = await EventsInfoAPI.getEvents();
-      setEvents(normalizeEvents(response?.data));
+      const response = await InfoSessionAPI.getInfoSessions();
+      setSessions(normalizeInfoSessions(response?.data?.infos));
     } catch (err) {
-      console.error('[SCAN] Events fetch error:', err);
-      setError(resolveEventsError(err));
-      setEvents([]);
+      console.error('[SCAN] Info sessions fetch error:', err);
+      setError(resolveInfoSessionError(err));
+      setSessions([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -44,16 +44,16 @@ export default function EventsTab() {
   }, []);
 
   useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+    fetchSessions();
+  }, [fetchSessions]);
 
-  const displayedEvents = useMemo(
-    () => sortEventsByDate(filterEventsByName(events, searchQuery), sortOrder),
-    [events, searchQuery, sortOrder]
+  const displayedSessions = useMemo(
+    () => sortSessionsByDate(filterSessionsByName(sessions, searchQuery), sortOrder),
+    [sessions, searchQuery, sortOrder]
   );
 
-  const openEvent = (eventId) => {
-    router.push(`/(tabs)/events/${eventId}`);
+  const openSession = (sessionId) => {
+    router.push(`/(tabs)/infoSession/${sessionId}`);
   };
 
   const toggleSortOrder = () => {
@@ -65,7 +65,7 @@ export default function EventsTab() {
       <View className="flex-1 flex-row items-center rounded-2xl border border-beta/10 dark:border-light/10 bg-light dark:bg-dark px-3">
         <Ionicons name="search" size={18} color="#888" />
         <TextInput
-          placeholder="Search events…"
+          placeholder="Search sessions…"
           value={searchQuery}
           onChangeText={setSearchQuery}
           className="flex-1 min-h-11 py-2 pl-2 text-sm text-beta dark:text-light"
@@ -113,7 +113,7 @@ export default function EventsTab() {
           <Ionicons name="cloud-offline-outline" size={48} color="#ef4444" />
           <Text className="text-sm text-error text-center mt-3">{error}</Text>
           <Pressable
-            onPress={() => fetchEvents()}
+            onPress={() => fetchSessions()}
             className="mt-4 bg-beta dark:bg-alpha px-5 py-3 rounded-xl active:opacity-90"
           >
             <Text className="text-light dark:text-beta font-semibold">Retry</Text>
@@ -123,15 +123,15 @@ export default function EventsTab() {
     );
   }
 
-  if (events.length === 0) {
+  if (sessions.length === 0) {
     return (
       <View className="flex-1">
         {searchBar}
         <View className="flex-1 items-center justify-center px-8 py-16">
-          <Ionicons name="calendar-outline" size={48} color={accentIcon} />
-          <Text className="text-base font-semibold text-beta dark:text-light mt-3">No events</Text>
+          <Ionicons name="school-outline" size={48} color={accentIcon} />
+          <Text className="text-base font-semibold text-beta dark:text-light mt-3">No info sessions</Text>
           <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-1">
-            Events from lionsgeek.ma will appear here.
+            Info sessions from lionsgeek.ma will appear here.
           </Text>
         </View>
       </View>
@@ -143,27 +143,29 @@ export default function EventsTab() {
       className="flex-1"
       contentContainerStyle={{ paddingBottom: 32 }}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchEvents(true)} tintColor={accentFill} />}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => fetchSessions(true)} tintColor={accentFill} />
+      }
     >
       {searchBar}
 
       <Text className="px-4 pb-2 text-xs text-beta/50 dark:text-light/50">
-        {displayedEvents.length} event{displayedEvents.length === 1 ? '' : 's'}
+        {displayedSessions.length} session{displayedSessions.length === 1 ? '' : 's'}
         {sortOrder === 'desc' ? ' · newest first' : ' · oldest first'}
       </Text>
 
-      {displayedEvents.length === 0 ? (
+      {displayedSessions.length === 0 ? (
         <View className="items-center px-8 py-12">
           <Ionicons name="search-outline" size={40} color={accentIcon} />
           <Text className="text-base font-semibold text-beta dark:text-light mt-3">No matches</Text>
           <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-1">
-            No events match &quot;{searchQuery}&quot;.
+            No sessions match &quot;{searchQuery}&quot;.
           </Text>
         </View>
       ) : (
         <View className="px-4">
-          {displayedEvents.map((event) => (
-            <EventCard key={event.id} event={event} onPress={() => openEvent(event.id)} />
+          {displayedSessions.map((session) => (
+            <InfoSessionCard key={session.id} session={session} onPress={() => openSession(session.id)} />
           ))}
         </View>
       )}

@@ -10,7 +10,7 @@ import AccessDenied from '@/components/events/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
 import ParticipantsList from '@/components/events/partials/ParticipantsList';
 import EventCoverImage from '@/components/events/partials/EventCoverImage';
-import { Colors } from '@/constants/Colors';
+import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
   canScanEvent,
@@ -23,6 +23,9 @@ import {
 } from '@/components/events/helpers';
 
 function StatusBadge({ status }) {
+  const isDark = useColorScheme() === 'dark';
+  const accentIcon = getAccentIconColor(isDark);
+
   if (status === 'Today') {
     return (
       <View className="flex-row items-center gap-1.5 bg-good/20 px-3 py-1.5 rounded-full">
@@ -33,9 +36,9 @@ function StatusBadge({ status }) {
   }
   if (status === 'Upcoming') {
     return (
-      <View className="flex-row items-center gap-1.5 bg-alpha/20 px-3 py-1.5 rounded-full">
-        <Ionicons name="time-outline" size={12} color={Colors.alpha} />
-        <Text className="text-xs font-bold text-alpha">Upcoming</Text>
+      <View className="flex-row items-center gap-1.5 bg-beta/20 dark:bg-alpha/20 px-3 py-1.5 rounded-full">
+        <Ionicons name="time-outline" size={12} color={accentIcon} />
+        <Text className="text-xs font-bold text-beta dark:text-alpha">Upcoming</Text>
       </View>
     );
   }
@@ -58,6 +61,7 @@ function SectionCard({ children, className = '' }) {
 }
 
 function AttendanceStat({ icon, label, value, tone = 'alpha' }) {
+  const isDark = useColorScheme() === 'dark';
   const toneClasses =
     tone === 'good'
       ? {
@@ -67,8 +71,8 @@ function AttendanceStat({ icon, label, value, tone = 'alpha' }) {
           label: 'text-good',
         }
       : {
-          box: 'bg-alpha/12 border-alpha/20',
-          icon: Colors.alpha,
+          box: 'bg-beta/12 dark:bg-alpha/12 border-beta/20 dark:border-alpha/20',
+          icon: getAccentIconColor(isDark),
           value: 'text-beta dark:text-light',
           label: 'text-beta/55 dark:text-light/55',
         };
@@ -101,6 +105,9 @@ export default function EventDetail() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const accentIcon = getAccentIconColor(isDark);
+  const accentFill = getAccentFillColor(isDark);
+  const onAccentText = getOnAccentTextColor(isDark);
 
   const [event, setEvent] = useState(null);
   const [participants, setParticipants] = useState([]);
@@ -205,9 +212,9 @@ export default function EventDetail() {
         <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
           <Pressable
             onPress={() => router.back()}
-            className="w-10 h-10 rounded-xl bg-alpha/15 items-center justify-center active:opacity-70"
+            className="w-10 h-10 rounded-xl bg-beta/15 dark:bg-alpha/15 items-center justify-center active:opacity-70"
           >
-            <Ionicons name="arrow-back" size={20} color={Colors.alpha} />
+            <Ionicons name="arrow-back" size={20} color={accentIcon} />
           </Pressable>
           <View className="flex-1 min-w-0">
             <Text className="text-xs font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
@@ -226,17 +233,17 @@ export default function EventDetail() {
               onPress={scannable ? openScanner : undefined}
               disabled={!scannable}
               className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl ${
-                scannable ? 'bg-alpha active:opacity-80' : 'bg-beta/10 dark:bg-light/10'
+                scannable ? 'bg-beta dark:bg-alpha active:opacity-80' : 'bg-beta/10 dark:bg-light/10'
               }`}
             >
               <Ionicons
                 name="qr-code"
                 size={17}
-                color={scannable ? Colors.beta : isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'}
+                color={scannable ? onAccentText : isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'}
               />
               <Text
                 className={`text-xs font-bold ${
-                  scannable ? 'text-beta' : 'text-beta/35 dark:text-light/35'
+                  scannable ? 'text-light dark:text-beta' : 'text-beta/35 dark:text-light/35'
                 }`}
               >
                 {scannable ? 'Scan' : 'Not today'}
@@ -258,10 +265,10 @@ export default function EventDetail() {
             <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-2">{error}</Text>
             <Pressable
               onPress={() => fetchEvent()}
-              className="mt-6 flex-row items-center gap-2 bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
+              className="mt-6 flex-row items-center gap-2 bg-beta dark:bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
             >
-              <Ionicons name="refresh" size={18} color={Colors.beta} />
-              <Text className="text-beta font-bold">Try again</Text>
+              <Ionicons name="refresh" size={18} color={onAccentText} />
+              <Text className="text-light dark:text-beta font-bold">Try again</Text>
             </Pressable>
           </View>
         ) : (
@@ -276,8 +283,8 @@ export default function EventDetail() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => fetchEvent(true)}
-                tintColor={Colors.alpha}
-                colors={[Colors.alpha]}
+                tintColor={accentFill}
+                colors={[accentFill]}
               />
             }
           >
@@ -309,13 +316,13 @@ export default function EventDetail() {
             <SectionCard className="p-4">
               <View className="flex-row items-center justify-between mb-1">
                 <View className="flex-row items-center gap-2">
-                  <View className="w-8 h-8 rounded-lg bg-alpha/15 items-center justify-center">
-                    <Ionicons name="people" size={16} color={Colors.alpha} />
+                  <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-alpha/15 items-center justify-center">
+                    <Ionicons name="people" size={16} color={accentIcon} />
                   </View>
                   <Text className="text-base font-bold text-beta dark:text-light">Registrations</Text>
                 </View>
                 {capacityLabel ? (
-                  <View className="bg-alpha/15 px-2.5 py-1 rounded-full">
+                  <View className="bg-beta/15 dark:bg-alpha/15 px-2.5 py-1 rounded-full">
                     <Text className="text-xs font-bold text-beta dark:text-light">{capacityLabel}</Text>
                   </View>
                 ) : (
@@ -343,7 +350,7 @@ export default function EventDetail() {
                 <View className="mt-3 mb-1">
                   <View className="h-1.5 rounded-full bg-beta/8 dark:bg-light/8 overflow-hidden">
                     <View
-                      className="h-full rounded-full bg-alpha"
+                      className="h-full rounded-full bg-beta dark:bg-alpha"
                       style={{ width: `${capacityFill * 100}%` }}
                     />
                   </View>

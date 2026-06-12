@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Skeleton from '@/components/ui/Skeleton';
+import { getAccentIconColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function EventCoverImage({ uri, height = 128, borderRadius = 0, className = '' }) {
@@ -18,10 +19,10 @@ export default function EventCoverImage({ uri, height = 128, borderRadius = 0, c
   if (!uri || failed) {
     return (
       <View
-        className={`w-full bg-alpha/15 items-center justify-center ${className}`}
+        className={`w-full bg-beta/15 dark:bg-alpha/15 items-center justify-center ${className}`}
         style={{ height, borderRadius }}
       >
-        <Ionicons name="calendar" size={height >= 140 ? 40 : 32} color="#ffc801" />
+        <Ionicons name="calendar" size={height >= 140 ? 40 : 32} color={getAccentIconColor(isDark)} />
       </View>
     );
   }

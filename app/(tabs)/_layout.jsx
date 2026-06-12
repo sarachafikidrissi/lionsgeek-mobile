@@ -88,6 +88,7 @@ export default function TabLayout() {
     { route: "home", name: "Home", icon: "house.fill", showTab: false }, // Hide duplicate home tab
     { route: "search", name: "Search", icon: "magnifyingglass", showTab: false },
     { route: "notifications", name: "Notifications", icon: "bell.fill", showTab: false },
+    { route: "infoSession", name: "Info Session", icon: "school", showTab: false },
   ]
 
 

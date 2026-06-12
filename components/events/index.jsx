@@ -5,7 +5,7 @@ import { userHasAdminRole } from '@/components/helpers/helpers';
 import AppLayout from '@/components/layout/AppLayout';
 import ScanTabBar from '@/components/events/partials/ScanTabBar';
 import EventsTab from '@/components/events/partials/EventsTab';
-import InfoSessionTab from '@/components/events/partials/InfoSessionTab';
+import InfoSessionsTab from '@/components/infoSession/partials/InfoSessionsTab';
 import AccessDenied from '@/components/events/partials/AccessDenied';
 
 export default function ScanScreen() {
@@ -29,7 +29,7 @@ export default function ScanScreen() {
         <ScanTabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
         <View className="flex-1">
-          {activeTab === 'events' ? <EventsTab /> : <InfoSessionTab />}
+          {activeTab === 'events' ? <EventsTab /> : <InfoSessionsTab />}
         </View>
       </View>
     </AppLayout>

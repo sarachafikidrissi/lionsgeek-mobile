@@ -1,5 +1,7 @@
 import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getAccentIconColor } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import EventCoverImage from '@/components/events/partials/EventCoverImage';
 import {
   formatEventDate,
@@ -9,6 +11,8 @@ import {
 } from '@/components/events/helpers';
 
 export default function EventCard({ event, onPress }) {
+  const isDark = useColorScheme() === 'dark';
+  const accentIcon = getAccentIconColor(isDark);
   const title = getEventDisplayName(event?.name);
   const coverUrl = getEventCoverUrl(event?.cover);
   const statusLabel = getEventStatusLabel(event);
@@ -33,8 +37,8 @@ export default function EventCard({ event, onPress }) {
               <Text className="text-[10px] font-semibold text-good">Today</Text>
             </View>
           ) : statusLabel === 'Upcoming' ? (
-            <View className="bg-alpha/15 px-2 py-1 rounded-full">
-              <Text className="text-[10px] font-semibold text-alpha">Upcoming</Text>
+            <View className="bg-beta/15 dark:bg-alpha/15 px-2 py-1 rounded-full">
+              <Text className="text-[10px] font-semibold text-beta dark:text-alpha">Upcoming</Text>
             </View>
           ) : (
             <View className="bg-beta/10 dark:bg-light/10 px-2 py-1 rounded-full">
@@ -44,13 +48,13 @@ export default function EventCard({ event, onPress }) {
         </View>
 
         <View className="flex-row items-center gap-2 mt-2">
-          <Ionicons name="time-outline" size={14} color="#ffc801" />
+          <Ionicons name="time-outline" size={14} color={accentIcon} />
           <Text className="text-xs text-beta/70 dark:text-light/70">{formatEventDate(event)}</Text>
         </View>
 
         {event?.location ? (
           <View className="flex-row items-center gap-2 mt-1">
-            <Ionicons name="location-outline" size={14} color="#ffc801" />
+            <Ionicons name="location-outline" size={14} color={accentIcon} />
             <Text className="text-xs text-beta/70 dark:text-light/70 flex-1" numberOfLines={1}>
               {event.location}
             </Text>

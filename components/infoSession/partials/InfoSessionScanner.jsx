@@ -3,12 +3,12 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import EventsInfoAPI from '@/api/eventsInfoSection';
+import InfoSessionAPI from '@/api/infoSessionSection';
 import Skeleton from '@/components/ui/Skeleton';
 import ScanResultOverlay from '@/components/events/partials/ScanResultModal';
 import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getEventDisplayName, mapValidationMessage } from '@/components/events/helpers';
+import { mapValidationMessage } from '@/components/infoSession/helpers';
 
 const DUPLICATE_SCAN_MS = 2500;
 const CORNER_SIZE = 36;
@@ -16,14 +16,14 @@ const BORDER_WIDTH = 4;
 
 function buildScanResult(message, profile) {
   const status = mapValidationMessage(message);
-  const visitorName = profile?.name?.trim() || null;
+  const visitorName = profile?.full_name?.trim() || profile?.name?.trim() || null;
   const normalized = String(message || '').toLowerCase();
 
   if (status === 'success') {
     return {
       status: 'success',
       title: 'Check-in successful',
-      message: visitorName ? `${visitorName} is registered for this event.` : message,
+      message: visitorName ? `${visitorName} is registered for this session.` : message,
       visitorName,
     };
   }
@@ -32,16 +32,16 @@ function buildScanResult(message, profile) {
     return {
       status: 'warning',
       title: 'Already checked in',
-      message: visitorName ? `${visitorName} was already scanned for this event.` : message,
+      message: visitorName ? `${visitorName} was already scanned for this session.` : message,
       visitorName,
     };
   }
 
-  if (normalized.includes('another event')) {
+  if (normalized.includes('another session')) {
     return {
       status: 'error',
-      title: 'Wrong event',
-      message: 'This visitor is registered for a different event.',
+      title: 'Wrong session',
+      message: 'This participant is registered for a different info session.',
       visitorName,
     };
   }
@@ -50,7 +50,7 @@ function buildScanResult(message, profile) {
     return {
       status: 'error',
       title: 'Not registered',
-      message: 'This visitor is not registered for this event.',
+      message: 'This participant is not registered for this session.',
       visitorName,
     };
   }
@@ -81,7 +81,7 @@ function ScanFrameCorner({ position, borderColor }) {
   return <View style={corners[position]} />;
 }
 
-export default function EventScanner() {
+export default function InfoSessionScanner() {
   const isDark = useColorScheme() === 'dark';
   const accentIcon = getAccentIconColor(isDark);
   const accentFill = getAccentFillColor(isDark);
@@ -90,22 +90,22 @@ export default function EventScanner() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
-  const [eventTitle, setEventTitle] = useState('');
+  const [sessionTitle, setSessionTitle] = useState('');
   const [lastResult, setLastResult] = useState(null);
   const scanLockRef = useRef(false);
   const lastScanRef = useRef({ data: null, at: 0 });
 
   useEffect(() => {
-    const loadEvent = async () => {
+    const loadSession = async () => {
       if (!id) return;
       try {
-        const response = await EventsInfoAPI.getEvent(id);
-        setEventTitle(getEventDisplayName(response?.data?.event?.name));
+        const response = await InfoSessionAPI.getSessionData(id);
+        setSessionTitle(response?.data?.session?.name || 'Info Session');
       } catch {
-        setEventTitle('Event');
+        setSessionTitle('Info Session');
       }
     };
-    loadEvent();
+    loadSession();
   }, [id]);
 
   const resetScanner = useCallback(() => {
@@ -119,7 +119,7 @@ export default function EventScanner() {
     resetScanner();
 
     if (id) {
-      router.replace(`/(tabs)/events/${id}`);
+      router.replace(`/(tabs)/infoSession/${id}`);
     } else {
       router.back();
     }
@@ -154,26 +154,26 @@ export default function EventScanner() {
       try {
         qrData = JSON.parse(data);
       } catch {
-        showFailure('Invalid QR code', 'This QR code is not a valid event invitation.');
+        showFailure('Invalid QR code', 'This QR code is not a valid session invitation.');
         return;
       }
 
       if (!qrData.email || qrData.code === undefined) {
-        showFailure('Invalid QR code', 'Missing visitor information in this QR code.');
+        showFailure('Invalid QR code', 'Missing participant information in this QR code.');
         return;
       }
 
-      const response = await EventsInfoAPI.validateEventInvitation({
+      const response = await InfoSessionAPI.validateInvitation({
         email: qrData.email,
-        code: Number(qrData.code),
-        id: Number(id),
+        code: String(qrData.code),
+        sessionId: Number(id),
       });
 
       const message = response?.data?.message || 'Scan processed.';
       const profile = response?.data?.profile;
       setLastResult(buildScanResult(message, profile));
     } catch (error) {
-      console.error('[SCAN] Validation error:', error);
+      console.error('[SCAN] Info session validation error:', error);
       showFailure('Error', 'Failed to validate QR code. Please try again.');
     } finally {
       setProcessing(false);
@@ -195,7 +195,7 @@ export default function EventScanner() {
       <View style={[styles.container, styles.permissionScreen]}>
         <Ionicons name="camera-outline" size={64} color={accentIcon} />
         <Text style={styles.permissionTitle}>Camera permission required</Text>
-        <Text style={styles.permissionText}>Allow camera access to scan visitor QR codes.</Text>
+        <Text style={styles.permissionText}>Allow camera access to scan participant QR codes.</Text>
         <Pressable onPress={requestPermission} style={[styles.permissionButton, { backgroundColor: accentFill }]}>
           <Text style={[styles.permissionButtonText, { color: onAccentText }]}>Grant permission</Text>
         </Pressable>
@@ -223,7 +223,7 @@ export default function EventScanner() {
             <View style={styles.headerCenter}>
               <Text style={styles.headerEyebrow}>SCANNING</Text>
               <Text style={styles.headerTitle} numberOfLines={1}>
-                {eventTitle}
+                {sessionTitle}
               </Text>
             </View>
             <View style={styles.headerSpacer} />
@@ -248,9 +248,9 @@ export default function EventScanner() {
           </View>
 
           <View style={styles.instructions}>
-            <Text style={styles.instructionsTitle}>Position the visitor QR code in the frame</Text>
+            <Text style={styles.instructionsTitle}>Position the participant QR code in the frame</Text>
             <Text style={styles.instructionsSub}>
-              Registered visitors show success. Others show an error, then you return to event details.
+              Registered participants show success. Others show an error, then you return to session details.
             </Text>
           </View>
         </View>
