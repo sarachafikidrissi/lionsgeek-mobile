@@ -1,3 +1,3 @@
-import ParticipantDetail from '@/components/infoSession/partials/ParticipantDetail';
+import ParticipantDetail from '@/components/infoSession/[id]';
 
 export default ParticipantDetail;
