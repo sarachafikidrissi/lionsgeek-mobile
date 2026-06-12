@@ -56,6 +56,17 @@ const put = async (endpoint, data) => {
   return axios.put(buildUrl(endpoint), data, { headers: authHeaders() });
 };
 
+const postMultipart = async (endpoint, formData) => {
+  ensureConfig();
+  return axios.post(buildUrl(endpoint), formData, {
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      Accept: 'application/json',
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
 export const InfoSessionAPI = {
   BASE_URL: PUBLIC_URL,
   APP_URL,
@@ -64,6 +75,12 @@ export const InfoSessionAPI = {
   getSessionData: (sessionId) => get(`session-data?id=${sessionId}`),
   validateInvitation: (payload) => put('validate-invitation', payload),
   getProfileData: (participantId) => get(`profile-data?id=${participantId}`),
+  uploadSessionPhoto: (participantId, photoFile) => {
+    const form = new FormData();
+    form.append('id', String(participantId));
+    form.append('photo', photoFile);
+    return postMultipart('session-photo', form);
+  },
 };
 
 export default InfoSessionAPI;

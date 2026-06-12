@@ -92,6 +92,7 @@ export default function InfoSessionScanner() {
   const [processing, setProcessing] = useState(false);
   const [sessionTitle, setSessionTitle] = useState('');
   const [lastResult, setLastResult] = useState(null);
+  const lastResultRef = useRef(null);
   const scanLockRef = useRef(false);
   const lastScanRef = useRef({ data: null, at: 0 });
 
@@ -115,8 +116,26 @@ export default function InfoSessionScanner() {
   }, []);
 
   const handleResultDismiss = useCallback(() => {
+    const current = lastResultRef.current;
+    lastResultRef.current = null;
     setLastResult(null);
     resetScanner();
+
+    const profileId = current?.profile?.id;
+    const shouldOpenParticipant =
+      profileId && (current?.status === 'success' || current?.status === 'warning');
+
+    if (shouldOpenParticipant && id) {
+      router.replace({
+        pathname: '/(tabs)/infoSession/participants/[id]',
+        params: {
+          id: String(profileId),
+          sessionId: String(id),
+          takePhoto: current?.status === 'success' ? '1' : '0',
+        },
+      });
+      return;
+    }
 
     if (id) {
       router.replace(`/(tabs)/infoSession/${id}`);
@@ -133,7 +152,9 @@ export default function InfoSessionScanner() {
   );
 
   const showFailure = useCallback((title, message) => {
-    setLastResult({ title, message, status: 'error', visitorName: null });
+    const failure = { title, message, status: 'error', visitorName: null, profile: null };
+    lastResultRef.current = failure;
+    setLastResult(failure);
     setProcessing(false);
   }, []);
 
@@ -159,7 +180,9 @@ export default function InfoSessionScanner() {
 
       const message = result.response?.data?.message || 'Scan processed.';
       const profile = result.response?.data?.profile;
-      setLastResult(buildScanResult(message, profile));
+      const scanResult = { ...buildScanResult(message, profile), profile };
+      lastResultRef.current = scanResult;
+      setLastResult(scanResult);
     } catch (error) {
       console.error('[SCAN] Info session validation error:', error);
       showFailure('Error', 'Failed to validate QR code. Please try again.');
@@ -238,13 +261,22 @@ export default function InfoSessionScanner() {
           <View style={styles.instructions}>
             <Text style={styles.instructionsTitle}>Position the participant QR code in the frame</Text>
             <Text style={styles.instructionsSub}>
-              Registered participants show success. Others show an error, then you return to session details.
+              On success you will open the participant profile to take their photo.
             </Text>
           </View>
         </View>
       </CameraView>
 
-      <ScanResultOverlay visible={!!lastResult} result={lastResult} onDismiss={handleResultDismiss} />
+      <ScanResultOverlay
+        visible={!!lastResult}
+        result={lastResult}
+        onDismiss={handleResultDismiss}
+        dismissHint={
+          lastResult?.status === 'success' || lastResult?.status === 'warning'
+            ? 'Opening participant profile in 2 seconds…'
+            : 'Returning to session details in 2 seconds…'
+        }
+      />
     </View>
   );
 }

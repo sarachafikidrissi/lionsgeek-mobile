@@ -68,6 +68,27 @@ export function mapInfoParticipant(participant) {
   };
 }
 
+export function getParticipantPhotoUrl(imageFilename) {
+  if (!imageFilename || typeof imageFilename !== 'string') return null;
+  if (imageFilename.startsWith('http://') || imageFilename.startsWith('https://')) {
+    return imageFilename;
+  }
+
+  let filename = imageFilename.trim();
+  if (filename.includes('/')) {
+    filename = filename.replace(/^\/+/, '').split('/').pop() || filename;
+  }
+
+  const encoded = encodeURIComponent(filename);
+
+  if (InfoSessionAPI.USE_PROXY && InfoSessionAPI.APP_URL) {
+    return `${InfoSessionAPI.APP_URL}/api/events-info/images/participants/${encoded}`;
+  }
+
+  if (!InfoSessionAPI.BASE_URL) return null;
+  return `${InfoSessionAPI.BASE_URL}/storage/images/participants/${encoded}`;
+}
+
 export function mapInfoParticipants(participants) {
   if (!Array.isArray(participants)) return [];
   return participants.map(mapInfoParticipant);

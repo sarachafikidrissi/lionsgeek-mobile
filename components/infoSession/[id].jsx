@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, RefreshControl, Image, Alert, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAppContext } from '@/context';
 import { userHasAdminRole } from '@/components/helpers/helpers';
-import InfoSessionAPI from '@/api/infoSessionSection';
+import { InfoSessionAPI } from '@/api/infoSessionSection';
 import AppLayout from '@/components/layout/AppLayout';
 import AccessDenied from '@/components/events/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
@@ -14,6 +15,7 @@ import {
   findParticipantById,
   formatSessionDate,
   getParticipantDetailRows,
+  getParticipantPhotoUrl,
   mapInfoParticipant,
   mapInfoParticipants,
 } from '@/components/infoSession/helpers';
@@ -49,6 +51,7 @@ export default function ParticipantDetail() {
   const params = useLocalSearchParams();
   const sessionId = Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId;
   const participantId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const takePhotoParam = Array.isArray(params.takePhoto) ? params.takePhoto[0] : params.takePhoto;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const accentIcon = getAccentIconColor(isDark);
@@ -59,9 +62,12 @@ export default function ParticipantDetail() {
   const [currentSession, setCurrentSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [error, setError] = useState(null);
+  const autoCameraTriggered = useRef(false);
 
   const detailRows = useMemo(() => getParticipantDetailRows(participant), [participant]);
+  const photoUrl = useMemo(() => getParticipantPhotoUrl(participant?.image), [participant?.image]);
 
   const loadParticipant = useCallback(
     async (isRefresh = false) => {
@@ -81,8 +87,9 @@ export default function ParticipantDetail() {
         const participants = mapInfoParticipants(sessionResponse?.data?.participants);
         let match = findParticipantById(participants, participantId);
 
-        if (!match && profileResponse?.data) {
-          match = mapInfoParticipant(profileResponse.data);
+        if (profileResponse?.data) {
+          const fromProfile = mapInfoParticipant(profileResponse.data);
+          match = match ? { ...match, ...fromProfile } : fromProfile;
         }
 
         if (!match) {
@@ -105,9 +112,68 @@ export default function ParticipantDetail() {
     [sessionId, participantId]
   );
 
+  const uploadPhoto = useCallback(
+    async (asset) => {
+      if (!participantId || !asset?.uri) return;
+
+      setUploadingPhoto(true);
+      try {
+        const photoFile = {
+          uri: asset.uri,
+          name: asset.fileName ?? `participant-${participantId}.jpg`,
+          type: asset.mimeType ?? 'image/jpeg',
+        };
+
+        const response = await InfoSessionAPI.uploadSessionPhoto(participantId, photoFile);
+        const updated = mapInfoParticipant(response?.data?.profile);
+        if (updated) {
+          setParticipant((prev) => ({ ...prev, ...updated }));
+        }
+      } catch (err) {
+        console.error('[SCAN] Participant photo upload error:', err);
+        Alert.alert('Upload failed', 'Could not save the participant photo. Please try again.');
+      } finally {
+        setUploadingPhoto(false);
+      }
+    },
+    [participantId]
+  );
+
+  const handleTakePhoto = useCallback(async () => {
+    if (uploadingPhoto) return;
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please allow camera access to take a participant photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+    await uploadPhoto(result.assets[0]);
+  }, [uploadingPhoto, uploadPhoto]);
+
   useEffect(() => {
     loadParticipant();
   }, [loadParticipant]);
+
+  useEffect(() => {
+    if (
+      takePhotoParam === '1' &&
+      participant &&
+      !loading &&
+      !autoCameraTriggered.current
+    ) {
+      autoCameraTriggered.current = true;
+      handleTakePhoto();
+    }
+  }, [takePhotoParam, participant, loading, handleTakePhoto]);
 
   if (!userHasAdminRole(user)) {
     return <AccessDenied />;
@@ -138,6 +204,22 @@ export default function ParticipantDetail() {
               </Text>
             )}
           </View>
+          {!loading && !error ? (
+            <Pressable
+              onPress={handleTakePhoto}
+              disabled={uploadingPhoto}
+              accessibilityLabel={photoUrl ? 'Retake participant photo' : 'Take participant photo'}
+              className="w-10 h-10 rounded-xl bg-beta dark:bg-alpha items-center justify-center active:opacity-80"
+            >
+              {uploadingPhoto ? (
+                <ActivityIndicator size="small" color={onAccentText} />
+              ) : (
+                <Ionicons name="camera" size={20} color={onAccentText} />
+              )}
+            </Pressable>
+          ) : (
+            <View className="w-10 h-10" />
+          )}
         </View>
 
         {loading ? (
@@ -172,11 +254,21 @@ export default function ParticipantDetail() {
             }
           >
             <SectionCard className="p-4 items-center">
-              <View className="w-20 h-20 rounded-full bg-beta/15 dark:bg-alpha/15 items-center justify-center mb-3">
-                <Text className="text-3xl font-bold text-beta dark:text-alpha">{initial}</Text>
+              <View className="w-24 h-24 rounded-full overflow-hidden bg-beta/15 dark:bg-alpha/15 items-center justify-center mb-3 border-2 border-beta/10 dark:border-light/10">
+                {photoUrl ? (
+                  <Image source={{ uri: photoUrl }} className="w-full h-full" resizeMode="cover" />
+                ) : (
+                  <Text className="text-3xl font-bold text-beta dark:text-alpha">{initial}</Text>
+                )}
               </View>
               <Text className="text-xl font-bold text-beta dark:text-light text-center">{participant?.name}</Text>
               <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-1">{participant?.email}</Text>
+
+              {!photoUrl ? (
+                <Text className="text-xs text-beta/45 dark:text-light/45 text-center mt-2 px-4">
+                  Tap the camera icon above to take a check-in photo.
+                </Text>
+              ) : null}
 
               <View className="flex-row flex-wrap items-center justify-center gap-2 mt-4">
                 {participant?.is_visited ? (
