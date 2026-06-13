@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text } from 'react-native';
 import { useAppContext } from '@/context';
-import { userHasAdminRole } from '@/components/helpers/helpers';
+import { userCanAccessScan } from '@/components/helpers/helpers';
 import AppLayout from '@/components/layout/AppLayout';
 import ScanTabBar from '@/components/events/partials/ScanTabBar';
 import EventsTab from '@/components/events/partials/EventsTab';
@@ -12,7 +12,7 @@ export default function ScanScreen() {
   const { user } = useAppContext();
   const [activeTab, setActiveTab] = useState('events');
 
-  if (!userHasAdminRole(user)) {
+  if (!userCanAccessScan(user)) {
     return <AccessDenied />;
   }
 

@@ -15,7 +15,7 @@ export default function AccessDenied() {
           Access Denied
         </Text>
         <Text className="text-sm text-beta/60 dark:text-light/60 mt-2 text-center">
-          Only admins can access visitor scanning.
+          You do not have permission to access visitor scanning.
         </Text>
       </View>
     </AppLayout>

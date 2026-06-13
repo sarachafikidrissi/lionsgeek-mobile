@@ -12,7 +12,7 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { userHasAdminRole } from '@/components/helpers/helpers';
+import { userCanAccessScan } from '@/components/helpers/helpers';
 import { InfoSessionAPI } from '@/api/infoSessionSection';
 import AppLayout from '@/components/layout/AppLayout';
 import AccessDenied from '@/components/events/partials/AccessDenied';
@@ -203,7 +203,7 @@ export default function InfoSessionDetailScreen() {
     });
   };
 
-  if (!userHasAdminRole(user)) {
+  if (!userCanAccessScan(user)) {
     return <AccessDenied />;
   }
 

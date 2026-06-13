@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, TextInput, RefreshControl, KeyboardA
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { userHasAdminRole } from '@/components/helpers/helpers';
+import { userCanAccessScan } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
 import AccessDenied from '@/components/events/partials/AccessDenied';
@@ -199,7 +199,7 @@ export default function EventDetail() {
     });
   };
 
-  if (!userHasAdminRole(user)) {
+  if (!userCanAccessScan(user)) {
     return <AccessDenied />;
   }
 
