@@ -11,3 +11,16 @@ export const Colors = {
   light: '#fafafa',      // --color-light
   dark: '#171717',       // --color-dark
 } as const;
+
+// Light mode uses beta/light; dark mode keeps alpha accents.
+export function getAccentIconColor(isDark: boolean) {
+  return isDark ? Colors.alpha : Colors.beta;
+}
+
+export function getAccentFillColor(isDark: boolean) {
+  return isDark ? Colors.alpha : Colors.beta;
+}
+
+export function getOnAccentTextColor(isDark: boolean) {
+  return isDark ? Colors.beta : Colors.light;
+}

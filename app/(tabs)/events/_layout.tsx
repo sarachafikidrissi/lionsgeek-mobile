@@ -1,11 +1,11 @@
 import { Stack } from 'expo-router';
 
-export default function ScanLayout() {
+export default function EventsLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, gestureEnabled: true }}>
       <Stack.Screen name="index" />
       <Stack.Screen
-        name="[eventId]"
+        name="[id]"
         options={{
           gestureEnabled: true,
           gestureDirection: 'horizontal',
@@ -21,7 +21,7 @@ export default function ScanLayout() {
         }}
       />
       <Stack.Screen
-        name="participant/[participantId]"
+        name="participant/[id]"
         options={{
           gestureEnabled: true,
           gestureDirection: 'horizontal',

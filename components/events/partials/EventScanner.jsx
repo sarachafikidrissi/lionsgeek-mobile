@@ -5,9 +5,10 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import Skeleton from '@/components/ui/Skeleton';
-import ScanResultOverlay from '@/components/scan/partials/ScanResultModal';
-import { Colors } from '@/constants/Colors';
-import { getEventDisplayName, mapValidationMessage } from '@/components/scan/helpers';
+import ScanResultOverlay from '@/components/events/partials/ScanResultModal';
+import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { getEventDisplayName, mapValidationMessage } from '@/components/events/helpers';
 
 const DUPLICATE_SCAN_MS = 2500;
 const CORNER_SIZE = 36;
@@ -62,12 +63,12 @@ function buildScanResult(message, profile) {
   };
 }
 
-function ScanFrameCorner({ position }) {
+function ScanFrameCorner({ position, borderColor }) {
   const base = {
     position: 'absolute',
     width: CORNER_SIZE,
     height: CORNER_SIZE,
-    borderColor: Colors.alpha,
+    borderColor,
   };
 
   const corners = {
@@ -81,7 +82,12 @@ function ScanFrameCorner({ position }) {
 }
 
 export default function EventScanner() {
-  const { eventId } = useLocalSearchParams();
+  const isDark = useColorScheme() === 'dark';
+  const accentIcon = getAccentIconColor(isDark);
+  const accentFill = getAccentFillColor(isDark);
+  const onAccentText = getOnAccentTextColor(isDark);
+  const params = useLocalSearchParams();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
@@ -91,16 +97,16 @@ export default function EventScanner() {
 
   useEffect(() => {
     const loadEvent = async () => {
-      if (!eventId) return;
+      if (!id) return;
       try {
-        const response = await EventsInfoAPI.getEvent(eventId);
+        const response = await EventsInfoAPI.getEvent(id);
         setEventTitle(getEventDisplayName(response?.data?.event?.name));
       } catch {
         setEventTitle('Event');
       }
     };
     loadEvent();
-  }, [eventId]);
+  }, [id]);
 
   const resetScanner = useCallback(() => {
     scanLockRef.current = false;
@@ -112,12 +118,12 @@ export default function EventScanner() {
     setLastResult(null);
     resetScanner();
 
-    if (eventId) {
-      router.replace(`/(tabs)/scan/${eventId}`);
+    if (id) {
+      router.replace(`/(tabs)/events/${id}`);
     } else {
       router.back();
     }
-  }, [eventId, resetScanner]);
+  }, [id, resetScanner]);
 
   useFocusEffect(
     useCallback(() => {
@@ -132,7 +138,7 @@ export default function EventScanner() {
   }, []);
 
   const handleBarCodeScanned = async ({ data }) => {
-    if (scanLockRef.current || processing || !eventId) return;
+    if (scanLockRef.current || processing || !id) return;
 
     const now = Date.now();
     if (lastScanRef.current.data === data && now - lastScanRef.current.at < DUPLICATE_SCAN_MS) {
@@ -160,7 +166,7 @@ export default function EventScanner() {
       const response = await EventsInfoAPI.validateEventInvitation({
         email: qrData.email,
         code: Number(qrData.code),
-        id: Number(eventId),
+        id: Number(id),
       });
 
       const message = response?.data?.message || 'Scan processed.';
@@ -187,11 +193,11 @@ export default function EventScanner() {
   if (!permission.granted) {
     return (
       <View style={[styles.container, styles.permissionScreen]}>
-        <Ionicons name="camera-outline" size={64} color={Colors.alpha} />
+        <Ionicons name="camera-outline" size={64} color={accentIcon} />
         <Text style={styles.permissionTitle}>Camera permission required</Text>
         <Text style={styles.permissionText}>Allow camera access to scan visitor QR codes.</Text>
-        <Pressable onPress={requestPermission} style={styles.permissionButton}>
-          <Text style={styles.permissionButtonText}>Grant permission</Text>
+        <Pressable onPress={requestPermission} style={[styles.permissionButton, { backgroundColor: accentFill }]}>
+          <Text style={[styles.permissionButtonText, { color: onAccentText }]}>Grant permission</Text>
         </Pressable>
         <Pressable onPress={() => router.back()} style={styles.backLink}>
           <Text style={styles.backLinkText}>Go back</Text>
@@ -225,10 +231,10 @@ export default function EventScanner() {
 
           <View style={styles.frameSection}>
             <View style={styles.scanFrame}>
-              <ScanFrameCorner position="top-left" />
-              <ScanFrameCorner position="top-right" />
-              <ScanFrameCorner position="bottom-left" />
-              <ScanFrameCorner position="bottom-right" />
+              <ScanFrameCorner position="top-left" borderColor={accentFill} />
+              <ScanFrameCorner position="top-right" borderColor={accentFill} />
+              <ScanFrameCorner position="bottom-left" borderColor={accentFill} />
+              <ScanFrameCorner position="bottom-right" borderColor={accentFill} />
 
               {processing ? (
                 <View style={styles.processingWrap}>
@@ -236,7 +242,7 @@ export default function EventScanner() {
                   <Text style={styles.processingText}>Validating…</Text>
                 </View>
               ) : (
-                <Ionicons name="qr-code-outline" size={48} color={Colors.alpha} />
+                <Ionicons name="qr-code-outline" size={48} color={accentIcon} />
               )}
             </View>
           </View>
@@ -366,13 +372,11 @@ const styles = StyleSheet.create({
   },
   permissionButton: {
     marginTop: 24,
-    backgroundColor: Colors.alpha,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
   },
   permissionButtonText: {
-    color: Colors.beta,
     fontWeight: '700',
   },
   backLink: {
