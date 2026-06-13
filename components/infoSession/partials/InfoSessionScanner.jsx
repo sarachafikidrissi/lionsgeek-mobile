@@ -131,7 +131,6 @@ export default function InfoSessionScanner() {
         params: {
           id: String(profileId),
           sessionId: String(id),
-          takePhoto: current?.status === 'success' ? '1' : '0',
         },
       });
       return;

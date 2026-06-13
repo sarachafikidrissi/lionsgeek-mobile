@@ -65,7 +65,12 @@ export function mapInfoParticipant(participant) {
   return {
     ...participant,
     name: participant?.full_name || participant?.name || 'Unknown',
+    is_visited: Boolean(participant?.is_visited),
   };
+}
+
+export function isParticipantCheckedIn(participant) {
+  return Boolean(participant?.is_visited);
 }
 
 export function getParticipantPhotoUrl(imageFilename) {

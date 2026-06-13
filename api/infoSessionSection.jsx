@@ -74,6 +74,7 @@ export const InfoSessionAPI = {
   getInfoSessions: () => get('lionsgate/infosessions'),
   getSessionData: (sessionId) => get(`session-data?id=${sessionId}`),
   validateInvitation: (payload) => put('validate-invitation', payload),
+  manualChecking: (participantId) => put('manual-checking', { id: Number(participantId) }),
   getProfileData: (participantId) => get(`profile-data?id=${participantId}`),
   uploadSessionPhoto: (participantId, photoFile) => {
     const form = new FormData();

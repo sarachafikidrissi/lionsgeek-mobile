@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, Image, Alert, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ import {
   formatSessionDate,
   getParticipantDetailRows,
   getParticipantPhotoUrl,
+  isParticipantCheckedIn,
   mapInfoParticipant,
   mapInfoParticipants,
 } from '@/components/infoSession/helpers';
@@ -51,7 +52,6 @@ export default function ParticipantDetail() {
   const params = useLocalSearchParams();
   const sessionId = Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId;
   const participantId = Array.isArray(params.id) ? params.id[0] : params.id;
-  const takePhotoParam = Array.isArray(params.takePhoto) ? params.takePhoto[0] : params.takePhoto;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const accentIcon = getAccentIconColor(isDark);
@@ -63,11 +63,12 @@ export default function ParticipantDetail() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
   const [error, setError] = useState(null);
-  const autoCameraTriggered = useRef(false);
 
   const detailRows = useMemo(() => getParticipantDetailRows(participant), [participant]);
   const photoUrl = useMemo(() => getParticipantPhotoUrl(participant?.image), [participant?.image]);
+  const checkedIn = isParticipantCheckedIn(participant);
 
   const loadParticipant = useCallback(
     async (isRefresh = false) => {
@@ -159,21 +160,41 @@ export default function ParticipantDetail() {
     await uploadPhoto(result.assets[0]);
   }, [uploadingPhoto, uploadPhoto]);
 
+  const handleManualCheckIn = useCallback(async () => {
+    if (!participantId || checkingIn || checkedIn) return;
+
+    Alert.alert(
+      'Manual check-in',
+      'Mark this participant as checked in without scanning their QR code?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Check in',
+          onPress: async () => {
+            setCheckingIn(true);
+            try {
+              const response = await InfoSessionAPI.manualChecking(participantId);
+              const updated = mapInfoParticipant(response?.data?.profile);
+              if (updated) {
+                setParticipant((prev) => ({ ...prev, ...updated, is_visited: true }));
+              } else {
+                setParticipant((prev) => (prev ? { ...prev, is_visited: true } : prev));
+              }
+            } catch (err) {
+              console.error('[SCAN] Manual check-in error:', err);
+              Alert.alert('Check-in failed', 'Could not mark this participant as checked in.');
+            } finally {
+              setCheckingIn(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [participantId, checkingIn, checkedIn]);
+
   useEffect(() => {
     loadParticipant();
   }, [loadParticipant]);
-
-  useEffect(() => {
-    if (
-      takePhotoParam === '1' &&
-      participant &&
-      !loading &&
-      !autoCameraTriggered.current
-    ) {
-      autoCameraTriggered.current = true;
-      handleTakePhoto();
-    }
-  }, [takePhotoParam, participant, loading, handleTakePhoto]);
 
   if (!userHasAdminRole(user)) {
     return <AccessDenied />;
@@ -271,7 +292,7 @@ export default function ParticipantDetail() {
               ) : null}
 
               <View className="flex-row flex-wrap items-center justify-center gap-2 mt-4">
-                {participant?.is_visited ? (
+                {checkedIn ? (
                   <View className="flex-row items-center gap-1.5 bg-good/15 px-3 py-1.5 rounded-full">
                     <Ionicons name="qr-code" size={14} color={Colors.good} />
                     <Text className="text-xs font-bold text-good">Checked in</Text>
@@ -283,6 +304,23 @@ export default function ParticipantDetail() {
                   </View>
                 )}
               </View>
+
+              {!checkedIn ? (
+                <Pressable
+                  onPress={handleManualCheckIn}
+                  disabled={checkingIn}
+                  className="mt-4 flex-row items-center justify-center gap-2 w-full bg-beta dark:bg-alpha px-5 py-3.5 rounded-2xl active:opacity-90"
+                >
+                  {checkingIn ? (
+                    <ActivityIndicator size="small" color={onAccentText} />
+                  ) : (
+                    <Ionicons name="person-add-outline" size={18} color={onAccentText} />
+                  )}
+                  <Text className="text-light dark:text-beta font-bold">
+                    {checkingIn ? 'Checking in…' : 'Manual check-in'}
+                  </Text>
+                </Pressable>
+              ) : null}
 
               {sessionTitle ? (
                 <Text className="text-xs text-beta/45 dark:text-light/45 text-center mt-3 capitalize">
