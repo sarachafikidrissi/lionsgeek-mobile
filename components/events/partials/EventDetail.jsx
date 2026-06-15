@@ -332,9 +332,9 @@ export default function EventDetail() {
               ) : null}
             </View>
 
-            <SectionCard className="p-4">
-              <View className="flex-row items-center gap-2 mb-3">
-                <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-alpha/15 items-center justify-center">
+            <SectionCard className="p-4 bg-dark">
+              <View className="flex-row items-center gap-2 mb-3 ">
+                <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-dark_gray items-center justify-center">
                   <Ionicons name="information-circle-outline" size={16} color={accentIcon} />
                 </View>
                 <Text className="text-base font-bold text-beta dark:text-light">Details</Text>
