@@ -23,8 +23,9 @@ import {
   getEventRemainingCapacity,
   getEventStatusLabel,
   getEventTotalCapacity,
-  getParticipantCounts,
   hasEventPassed,
+  isPrivateEvent,
+  getParticipantCounts,
 } from '@/components/events/helpers';
 
 function StatusBadge({ status }) {
@@ -182,7 +183,7 @@ export default function EventDetail() {
   const scannable = event ? canScanEvent(event) : false;
   const title = getEventDisplayName(event?.name);
   const coverUrl = getEventCoverUrl(event?.cover);
-  const statusLabel = event ? getEventStatusLabel(event) : null;
+  const statusLabel = event ? getEventStatusLabel(event, { treatPastByDateTime: !canAccessScan }) : null;
   const capacityLabel = event ? formatEventCapacity(event, participants.length) : null;
   const totalCapacity = event ? getEventTotalCapacity(event, participants.length) : null;
   const capacityFill =
@@ -190,9 +191,10 @@ export default function EventDetail() {
   const { registered: registeredCount, scanned: scannedCount } = getParticipantCounts(participants);
   const remainingCapacity = event ? getEventRemainingCapacity(event) : 0;
   const alreadyBooked = hasUserBookedEvent(participants, user?.email);
-  const isBookableStatus = statusLabel === 'Today' || statusLabel === 'Upcoming';
-  const canShowBooking = !canAccessScan && isBookableStatus && !hasEventPassed(event);
-  const canOpenBooking = canShowBooking && canBookEvent(event) && !alreadyBooked;
+  const eventHasPassed = event ? hasEventPassed(event) : false;
+  const isPrivate = event ? isPrivateEvent(event) : false;
+  const canShowBooking = !canAccessScan && !isPrivate;
+  const canOpenBooking = canShowBooking && canBookEvent(event) && !alreadyBooked && !eventHasPassed;
 
   const openScanner = () => {
     router.push({
@@ -279,6 +281,24 @@ export default function EventDetail() {
               <Text className="text-light dark:text-beta font-bold">Try again</Text>
             </Pressable>
           </View>
+        ) : isPrivate ? (
+          <View className="flex-1 items-center justify-center px-8">
+            <View className="w-16 h-16 rounded-2xl bg-beta/10 dark:bg-light/10 items-center justify-center mb-4">
+              <Ionicons name="lock-closed-outline" size={32} color={accentIcon} />
+            </View>
+            <Text className="text-base font-semibold text-beta dark:text-light text-center">
+              Private event
+            </Text>
+            <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-2">
+              This event is not available in the app.
+            </Text>
+            <Pressable
+              onPress={() => router.back()}
+              className="mt-6 bg-beta dark:bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
+            >
+              <Text className="text-light dark:text-beta font-bold">Go back</Text>
+            </Pressable>
+          </View>
         ) : (
           <ScrollView
             ref={scrollViewRef}
@@ -328,9 +348,11 @@ export default function EventDetail() {
               <SectionCard className="p-4">
                 <Text className="text-base font-bold text-beta dark:text-light">Free Event</Text>
                 <Text className="text-sm text-beta/60 dark:text-light/60 mt-1">
-                  {remainingCapacity > 0
-                    ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
-                    : 'This event is fully booked'}
+                  {eventHasPassed
+                    ? 'This event has ended'
+                    : remainingCapacity > 0
+                      ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
+                      : 'This event is fully booked'}
                 </Text>
 
                 {alreadyBooked ? (
@@ -339,6 +361,13 @@ export default function EventDetail() {
                     className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
                   >
                     <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Already Booked</Text>
+                  </Pressable>
+                ) : eventHasPassed ? (
+                  <Pressable
+                    disabled
+                    className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
+                  >
+                    <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Event Ended</Text>
                   </Pressable>
                 ) : remainingCapacity <= 0 ? (
                   <Pressable
@@ -351,9 +380,17 @@ export default function EventDetail() {
                   <Pressable
                     onPress={() => setShowBookingModal(true)}
                     disabled={!canOpenBooking}
-                    className="mt-4 items-center justify-center rounded-2xl bg-beta dark:bg-alpha py-3.5 active:opacity-90"
+                    className={`mt-4 items-center justify-center rounded-2xl py-3.5 ${
+                      canOpenBooking ? 'bg-beta dark:bg-alpha active:opacity-90' : 'bg-beta/10 dark:bg-light/10'
+                    }`}
                   >
-                    <Text className="text-sm font-bold text-light dark:text-beta">Book now</Text>
+                    <Text
+                      className={`text-sm font-bold ${
+                        canOpenBooking ? 'text-light dark:text-beta' : 'text-beta/50 dark:text-light/50'
+                      }`}
+                    >
+                      Book now
+                    </Text>
                   </Pressable>
                 )}
               </SectionCard>

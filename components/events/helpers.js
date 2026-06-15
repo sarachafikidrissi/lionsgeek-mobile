@@ -92,6 +92,16 @@ export function normalizeEvents(events) {
   return events.filter((event) => getEventDate(event));
 }
 
+export function isPrivateEvent(event) {
+  return Boolean(event?.is_private);
+}
+
+// Public events only — private events are hidden from the mobile list.
+export function filterPublicEvents(events) {
+  if (!Array.isArray(events)) return [];
+  return events.filter((event) => !isPrivateEvent(event));
+}
+
 export function sortEventsByDate(events, order = 'desc') {
   return [...events].sort((a, b) => {
     const da = getEventDate(a)?.getTime() ?? 0;
@@ -106,7 +116,10 @@ export function filterEventsByName(events, query) {
   return events.filter((event) => getEventDisplayName(event?.name).toLowerCase().includes(q));
 }
 
-export function getEventStatusLabel(event) {
+export function getEventStatusLabel(event, options = {}) {
+  const { treatPastByDateTime = false } = options;
+  if (treatPastByDateTime && hasEventPassed(event)) return 'Past';
+
   const eventDate = getEventDate(event);
   if (!eventDate) return 'Unknown';
   const today = startOfDay(new Date());
@@ -267,7 +280,7 @@ export async function fetchParticipantOtherRegistrations(email, excludeEventId) 
   if (!normalizedEmail) return [];
 
   const listResponse = await EventsInfoAPI.getEvents();
-  const events = normalizeEvents(listResponse?.data ?? []).filter(
+  const events = filterPublicEvents(normalizeEvents(listResponse?.data ?? [])).filter(
     (event) => !isSameEventId(event.id, excludeEventId)
   );
 

@@ -10,12 +10,12 @@ import {
   getEventStatusLabel,
 } from '@/components/events/helpers';
 
-export default function EventCard({ event, onPress }) {
+export default function EventCard({ event, onPress, treatPastByDateTime = false }) {
   const isDark = useColorScheme() === 'dark';
   const accentIcon = getAccentIconColor(isDark);
   const title = getEventDisplayName(event?.name);
   const coverUrl = getEventCoverUrl(event?.cover);
-  const statusLabel = getEventStatusLabel(event);
+  const statusLabel = getEventStatusLabel(event, { treatPastByDateTime });
   const isPast = statusLabel === 'Past';
 
   return (

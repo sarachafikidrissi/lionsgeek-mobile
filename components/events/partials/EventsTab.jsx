@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppContext } from '@/context';
+import { userCanAccessScan } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import { getAccentFillColor, getAccentIconColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -9,12 +11,15 @@ import Skeleton from '@/components/ui/Skeleton';
 import EventCard from '@/components/events/partials/EventCard';
 import {
   filterEventsByName,
+  filterPublicEvents,
   normalizeEvents,
   resolveEventsError,
   sortEventsByDate,
 } from '@/components/events/helpers';
 
 export default function EventsTab() {
+  const { user } = useAppContext();
+  const canAccessScan = userCanAccessScan(user);
   const isDark = useColorScheme() === 'dark';
   const accentIcon = getAccentIconColor(isDark);
   const accentFill = getAccentFillColor(isDark);
@@ -32,7 +37,7 @@ export default function EventsTab() {
 
     try {
       const response = await EventsInfoAPI.getEvents();
-      setEvents(normalizeEvents(response?.data));
+      setEvents(filterPublicEvents(normalizeEvents(response?.data)));
     } catch (err) {
       console.error('[SCAN] Events fetch error:', err);
       setError(resolveEventsError(err));
@@ -163,7 +168,12 @@ export default function EventsTab() {
       ) : (
         <View className="px-4">
           {displayedEvents.map((event) => (
-            <EventCard key={event.id} event={event} onPress={() => openEvent(event.id)} />
+            <EventCard
+              key={event.id}
+              event={event}
+              onPress={() => openEvent(event.id)}
+              treatPastByDateTime={!canAccessScan}
+            />
           ))}
         </View>
       )}
