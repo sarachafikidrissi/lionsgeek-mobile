@@ -66,6 +66,7 @@ export default function TabLayout() {
       "magnifyingglass": focused ? "search" : "search-outline",
       "bell.fill": focused ? "notifications" : "notifications-outline",
       "qr-code": focused ? "qr-code" : "qr-code-outline",
+      "ticket": focused ? "ticket" : "ticket-outline",
       "school": focused ? "school" : "school-outline",
     };
     return iconMap[sfSymbolName] || sfSymbolName;
@@ -75,7 +76,7 @@ export default function TabLayout() {
     { route: "index", name: "Home", icon: "house.fill" },
     { route: "reservations", name: "Reservations", icon: "calendar" },
     { route: "training", name: "Training", icon: "school" },
-    { route: "events", name: "Events", icon: "qr-code", scanAccess: true },
+    { route: "events", name: "Events", icon: "ticket", scanAccess: true },
     { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill" },
     { route: "profile", name: "Profile", icon: "person.fill" },
   ];
