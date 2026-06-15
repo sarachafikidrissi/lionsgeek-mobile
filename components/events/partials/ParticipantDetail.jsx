@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, RefreshControl, Alert, ActivityIndic
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { userCanAccessScan, userHasAdminRole } from '@/components/helpers/helpers';
+import { userCanAccessScan } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
 import AccessDenied from '@/components/events/partials/AccessDenied';
@@ -19,6 +19,7 @@ import {
   hasEventPassed,
   getParticipantDetailRows,
   isSameEventId,
+  userCanCheckInEvent,
 } from '@/components/events/helpers';
 
 function SectionCard({ children, className = '' }) {
@@ -120,13 +121,11 @@ export default function ParticipantDetail() {
   const [error, setError] = useState(null);
   const [checkingIn, setCheckingIn] = useState(false);
 
-  const isAdmin = userHasAdminRole(user);
-
   const detailRows = useMemo(() => getParticipantDetailRows(participant), [participant]);
 
   const eventHasPassed = currentEvent ? hasEventPassed(currentEvent) : false;
   const checkedIn = Boolean(participant?.is_visited);
-  const canShowManualCheckIn = isAdmin || !eventHasPassed;
+  const canShowManualCheckIn = currentEvent ? userCanCheckInEvent(currentEvent, user) : false;
 
   const otherEventsOnly = useMemo(
     () => otherRegistrations.filter((item) => !isSameEventId(item.event?.id, eventId)),
@@ -317,9 +316,11 @@ export default function ParticipantDetail() {
                 </Pressable>
               ) : null}
 
-              {!checkedIn && !canShowManualCheckIn && !isAdmin ? (
+              {!checkedIn && !canShowManualCheckIn ? (
                 <Text className="text-xs text-beta/45 dark:text-light/45 text-center mt-4 leading-5">
-                  Manual check-in is no longer available after the event start time.
+                  {eventHasPassed
+                    ? 'Check-in after the event is only available to admins.'
+                    : 'Manual check-in is only available on the event day, before the event start time.'}
                 </Text>
               ) : null}
 

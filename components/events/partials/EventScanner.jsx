@@ -213,7 +213,7 @@ export default function EventScanner() {
         <Text style={styles.permissionTitle}>{eventEnded ? 'Scan closed' : 'Scan not available'}</Text>
         <Text style={styles.permissionText}>
           {eventEnded
-            ? 'QR scanning is closed after the event. Contact an admin for late check-in.'
+            ? 'QR scanning is closed after the event. Only admins can check in participants at this time.'
             : 'QR scanning is only available on the event day, before the event date and time.'}
         </Text>
         <Pressable onPress={() => router.back()} style={[styles.permissionButton, { backgroundColor: accentFill }]}>

@@ -79,6 +79,11 @@ export function userCanScanEvent(event, user) {
   return canScanEvent(event);
 }
 
+// Same window as QR scan: admins anytime; scan staff only on event day before start.
+export function userCanCheckInEvent(event, user) {
+  return userCanScanEvent(event, user);
+}
+
 export function formatEventDate(event) {
   const eventDate = getEventDate(event);
   if (!eventDate) return '—';
