@@ -25,7 +25,7 @@ export default function useStoryMusic(musicOverlay, { isPaused = false } = {}) {
   const overlayId = musicOverlay?.id;
   const previewUrl = musicOverlay?.preview_url;
   const startMs    = musicOverlay?.start_ms ?? 0;
-  const endMs      = musicOverlay?.end_ms   ?? 15000;
+  const endMs      = musicOverlay?.end_ms   ?? 60000;
 
   // Configure audio mode once.
   useEffect(() => {
@@ -72,10 +72,11 @@ export default function useStoryMusic(musicOverlay, { isPaused = false } = {}) {
           return;
         }
         soundRef.current = sound;
-        // Loop the [start_ms, end_ms] window.
+        // Loop the preview inside the full song segment on the story.
         sound.setOnPlaybackStatusUpdate((status) => {
           if (!status?.isLoaded) return;
-          if (status.didJustFinish || status.positionMillis >= endMs - 50) {
+          const previewEnd = Math.min(startMs + 30000, endMs);
+          if (status.didJustFinish || status.positionMillis >= previewEnd - 50) {
             sound.setPositionAsync(startMs).catch(() => {});
             sound.playAsync().catch(() => {});
           }

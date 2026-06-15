@@ -11,6 +11,7 @@ import {
   Platform,
   Keyboard,
   Alert,
+  StyleSheet,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -21,20 +22,24 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { Audio } from 'expo-av';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  PREVIEW_MAX_MS,
+  STORY_MAX_MS,
+  CATEGORY_SECTIONS,
+  getClipDurationMs,
+  getPreviewPlayableMs,
+  getMaxStartMs,
+  buildMusicOverlayPayload,
+  formatDuration,
+  formatMs,
+} from '@/components/stories/editor/musicUtils';
 
-const { width: WINDOW_W, height: WINDOW_H } = Dimensions.get('window');
+const { height: WINDOW_H } = Dimensions.get('window');
 const SHEET_H = Math.round(WINDOW_H * 0.82);
-
-// The audio previews from Spotify / iTunes are 30 seconds long. We attach a
-// 15-second slice; users can drag a window across the preview to pick which
-// 15 seconds play during the story.
-const PREVIEW_DURATION_MS = 30_000;
-const CLIP_DURATION_MS    = 15_000;
 
 const DISPLAY_STYLES = [
   { id: 'none',    label: 'Sound only', icon: 'headset' },
@@ -43,31 +48,28 @@ const DISPLAY_STYLES = [
   { id: 'minimal', label: 'Minimal',    icon: 'remove' },
 ];
 
+const CATEGORIES = [
+  { id: 'trending', label: 'Tendance' },
+  { id: 'for_you',  label: 'Top Maroc' },
+  { id: 'original', label: 'Original' },
+  { id: 'saved',    label: 'Saved' },
+];
+
 /**
- * Bottom sheet for the story creator's music sticker.
- *
- *  - Search box (Spotify-backed, iTunes fallback for previews)
- *  - Tap a row to start an in-sheet audio preview
- *  - Drag the 15-second window across the 30-second waveform to choose the
- *    clip start
- *  - Pick a display variant (pill / card / minimal)
- *  - "Use this song" returns a fully-formed music overlay payload
- *
- * Props:
- *   visible
- *   onClose()
- *   onPick(overlayData) – { type:'music', track_id, title, artist, album,
- *                           cover_url, preview_url, start_ms, end_ms,
- *                           display, source }
+ * Story music picker — GET /mobile/music/browse (Morocco charts & trending).
  */
 export default function MusicPickerSheet({ visible, onClose, onPick }) {
   const { token } = useAppContext();
   const insets = useSafeAreaInsets();
   const translateY = useSharedValue(SHEET_H);
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('trending');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [source, setSource] = useState(null); // 'spotify+itunes' | 'itunes'
+  const [savedTracks, setSavedTracks] = useState([]);
+  const [sectionTitle, setSectionTitle] = useState('Tendance au Maroc');
+  const [featuredIndex, setFeaturedIndex] = useState(0);
   const [selected, setSelected] = useState(null);
   const [startMs, setStartMs] = useState(0);
   const [display, setDisplay] = useState('none');
@@ -81,16 +83,18 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
   useEffect(() => {
     if (visible) {
       translateY.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) });
-      setTimeout(() => inputRef.current?.focus?.(), 220);
     } else {
       translateY.value = withTiming(SHEET_H, { duration: 200 });
       // Reset state once the sheet fully leaves the screen
       setTimeout(() => {
         setQuery('');
+        setCategory('trending');
         setResults([]);
         setSelected(null);
         setStartMs(0);
         setDisplay('none');
+        setFeaturedIndex(0);
+        setSectionTitle('Tendance au Maroc');
       }, 220);
     }
   }, [visible]);
@@ -129,39 +133,68 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
     if (!visible) unloadAudio();
   }, [visible, unloadAudio]);
 
-  // ─── Search (debounced) ────────────────────────────────────────────────
+  const toggleSaved = useCallback((track) => {
+    if (!track?.id) return;
+    setSavedTracks((prev) => {
+      const exists = prev.some((t) => t.id === track.id);
+      if (exists) return prev.filter((t) => t.id !== track.id);
+      return [track, ...prev];
+    });
+  }, []);
+
+  const isTrackSaved = useCallback(
+    (track) => savedTracks.some((t) => t.id === track?.id),
+    [savedTracks],
+  );
+
+  // ─── Load tracks via unified browse API ────────────────────────────────
   useEffect(() => {
     if (!visible) return;
-    const q = query.trim();
-    if (q.length < 1) {
-      setResults([]);
+
+    if (category === 'saved' && !query.trim()) {
+      setResults(savedTracks);
+      setSectionTitle('Saved');
       setLoading(false);
       return;
     }
+
+    const section = query.trim()
+      ? 'search'
+      : (CATEGORY_SECTIONS[category] || 'top_morocco');
+
+    if (section === 'saved') return;
+
     let cancelled = false;
     setLoading(true);
+    const delay = query.trim() ? 350 : 0;
     const t = setTimeout(async () => {
       try {
-        const data = await API.searchMusic(q, token, { limit: 25 });
+        const data = await API.browseMusic(token, {
+          section,
+          country: 'MA',
+          q: query.trim(),
+          limit: 50,
+        });
         if (cancelled) return;
+        setSectionTitle(data?.title || 'Tendance au Maroc');
         setSource(data?.source || null);
-        const items = Array.isArray(data?.items) ? data.items : [];
-        // Only show tracks we can actually preview.
-        setResults(items.filter((x) => !!x.preview_url));
+        setResults(Array.isArray(data?.items) ? data.items : []);
+        setFeaturedIndex(0);
       } catch (_) {
         if (!cancelled) setResults([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }, 350);
+    }, delay);
+
     return () => { cancelled = true; clearTimeout(t); };
-  }, [query, token, visible]);
+  }, [query, category, token, visible, savedTracks]);
 
   // ─── Track selection + playback ────────────────────────────────────────
   const playTrack = useCallback(async (track) => {
     await unloadAudio();
     if (!track?.preview_url) {
-      Alert.alert('No preview', 'This track does not have a playable preview.');
+      setPlaying(false);
       return;
     }
     try {
@@ -213,8 +246,14 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
     await playTrack(track);
   }, [playTrack]);
 
+  const clipDurationMs = selected ? getClipDurationMs(selected) : STORY_MAX_MS;
+  const previewPlayableMs = selected ? getPreviewPlayableMs(selected) : PREVIEW_MAX_MS;
+  const maxStartMs = selected ? getMaxStartMs(selected) : 0;
+  const trimWindowFraction = clipDurationMs > 0
+    ? Math.min(1, previewPlayableMs / clipDurationMs)
+    : 1;
+
   // ─── Trim slider ───────────────────────────────────────────────────────
-  // 30s preview, 15s window → start can move from 0 → 15s.
   const trackBarRef = useRef({ width: 0, x: 0 });
   const onTrackBarLayout = useCallback((e) => {
     const { width, x } = e.nativeEvent.layout;
@@ -223,19 +262,18 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
 
   const setStartFromPosition = useCallback(async (positionX) => {
     const { width } = trackBarRef.current;
-    if (!width) return;
-    // Movable area is [0, width * 0.5] because the window is 15s of 30s.
-    const movable = width * 0.5;
+    if (!width || !selected) return;
+    const movable = width * (1 - trimWindowFraction);
     const clamped = Math.max(0, Math.min(movable, positionX));
-    const ratio = clamped / movable;
-    const newStart = Math.round(ratio * (PREVIEW_DURATION_MS - CLIP_DURATION_MS));
+    const ratio = movable > 0 ? clamped / movable : 0;
+    const newStart = Math.round(ratio * maxStartMs);
     setStartMs(newStart);
     if (soundRef.current) {
       try {
         await soundRef.current.setPositionAsync(newStart);
       } catch (_) {}
     }
-  }, []);
+  }, [selected, maxStartMs, trimWindowFraction]);
 
   const trimPanGesture = Gesture.Pan()
     .onUpdate((e) => {
@@ -249,19 +287,11 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
   const commit = useCallback(async () => {
     if (!selected) return;
     await unloadAudio();
-    const overlay = {
-      type:        'music',
-      track_id:    selected.id,
-      title:       selected.title,
-      artist:      selected.artist,
-      album:       selected.album,
-      cover_url:   selected.cover_url,
-      preview_url: selected.preview_url,
-      start_ms:    Math.max(0, Math.min(PREVIEW_DURATION_MS - CLIP_DURATION_MS, startMs)),
-      end_ms:      Math.max(0, Math.min(PREVIEW_DURATION_MS, startMs + CLIP_DURATION_MS)),
+    const overlay = buildMusicOverlayPayload(selected, {
+      startMs,
       display,
-      source:      selected.source || source || 'spotify+itunes',
-    };
+      source,
+    });
     onPick?.(overlay);
   }, [selected, startMs, display, source, unloadAudio, onPick]);
 
@@ -305,6 +335,11 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
     return bars;
   }, [selected]);
 
+  const isSearching = query.trim().length > 0;
+  const listTracks = category === 'saved' && !isSearching ? savedTracks : results;
+  const listLoading = loading;
+  const showTrendBadge = category === 'trending' && !isSearching;
+
   if (!visible && translateY.value === SHEET_H) return null;
 
   // ─── Render ────────────────────────────────────────────────────────────
@@ -321,102 +356,25 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
         style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
         pointerEvents="box-none"
       >
-        <Animated.View style={[{
-          height: SHEET_H,
-          backgroundColor: '#0a0a0f',
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          overflow: 'hidden',
-          borderTopWidth: 1,
-          borderLeftWidth: 1,
-          borderRightWidth: 1,
-          borderColor: 'rgba(255,255,255,0.1)',
-        }, sheetStyle]}>
-          <BlurView
-            intensity={Platform.OS === 'ios' ? 55 : 90}
-            tint="dark"
-            style={{
-              position: 'absolute',
-              top: 0, left: 0, right: 0,
-              height: 120,
-              opacity: 0.85,
-            }}
-          />
-          <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: 1,
-              backgroundColor: 'rgba(29,185,84,0.55)',
-            }}
-          />
-
-          {/* Drag handle + header (drag area only on top section) */}
+        <Animated.View style={[styles.sheet, sheetStyle]}>
+          {/* Drag handle */}
           <GestureDetector gesture={closePanGesture}>
-            <View>
-              <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 8 }}>
-                <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.28)' }} />
-              </View>
-              <View style={{
-                flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                paddingHorizontal: 18, paddingBottom: 12,
-              }}>
-                <View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={{
-                      width: 36, height: 36, borderRadius: 12,
-                      backgroundColor: 'rgba(29,185,84,0.22)',
-                      alignItems: 'center', justifyContent: 'center',
-                      borderWidth: 1,
-                      borderColor: 'rgba(29,185,84,0.45)',
-                    }}>
-                      <Ionicons name="musical-notes" size={18} color="#1DB954" />
-                    </View>
-                    <View>
-                      <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', letterSpacing: -0.3 }}>
-                        Sound
-                      </Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 2, fontWeight: '600' }}>
-                        30s preview · pick your clip
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={dismiss}
-                  hitSlop={12}
-                  style={({ pressed }) => ({
-                    width: 40, height: 40, borderRadius: 20,
-                    backgroundColor: pressed ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.08)',
-                    alignItems: 'center', justifyContent: 'center',
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.1)',
-                  })}
-                >
-                  <Ionicons name="close" size={22} color="#fff" />
-                </Pressable>
-              </View>
+            <View style={styles.handleWrap}>
+              <View style={styles.handle} />
             </View>
           </GestureDetector>
 
           {/* Search */}
-          <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-            <View style={{
-              flexDirection: 'row', alignItems: 'center', gap: 10,
-              paddingHorizontal: 14,
-              paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-              borderRadius: 16,
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.1)',
-            }}>
-              <Ionicons name="search" size={18} color="rgba(255,255,255,0.45)" />
+          <View style={styles.searchWrap}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={18} color="rgba(255,255,255,0.4)" />
               <TextInput
                 ref={inputRef}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search artists & songs"
+                placeholder="Search songs or artists..."
                 placeholderTextColor="rgba(255,255,255,0.38)"
-                style={{ flex: 1, color: '#fff', fontSize: 15, paddingVertical: 0, fontWeight: '500' }}
+                style={styles.searchInput}
                 autoCorrect={false}
                 autoCapitalize="none"
                 returnKeyType="search"
@@ -425,32 +383,79 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
             </View>
           </View>
 
+          {/* Category chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}
+            style={{ flexGrow: 0 }}
+          >
+            {CATEGORIES.map((cat) => {
+              const active = category === cat.id;
+              return (
+                <Pressable
+                  key={cat.id}
+                  onPress={() => setCategory(cat.id)}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {cat.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
           {/* Track list */}
           <ScrollView
             keyboardShouldPersistTaps="handled"
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 300, paddingHorizontal: 4 }}
+            contentContainerStyle={{ paddingBottom: selected ? 320 : 24 }}
             showsVerticalScrollIndicator={false}
           >
-            {!query.trim() ? (
-              <EmptyState onPickSuggestion={setQuery} />
-            ) : !loading && results.length === 0 ? (
+            {listLoading && listTracks.length === 0 ? (
+              <View style={{ paddingTop: 48, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#fff" />
+              </View>
+            ) : !listLoading && listTracks.length === 0 ? (
               <View style={{ paddingHorizontal: 20, paddingTop: 36, alignItems: 'center' }}>
-                <Text style={{ color: 'rgba(255,255,255,0.55)' }}>No tracks found.</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
-                  Try a different artist or song title.
+                <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 15 }}>
+                  {category === 'saved' ? 'No saved songs yet.' : 'No tracks found.'}
                 </Text>
+                {category === 'saved' ? (
+                  <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 6, textAlign: 'center' }}>
+                    Tap the bookmark on a song to save it here.
+                  </Text>
+                ) : null}
               </View>
             ) : (
-              results.map((t) => (
-                <TrackRow
-                  key={t.id}
-                  track={t}
-                  isSelected={selected?.id === t.id}
-                  isPlaying={selected?.id === t.id && playing}
-                  onPress={() => handleSelectTrack(t)}
-                />
-              ))
+              <>
+                {listTracks.length > 0 ? (
+                  <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+                ) : null}
+                {listTracks.length > 0 && !selected ? (
+                  <FeaturedCard
+                    track={listTracks[featuredIndex % listTracks.length]}
+                    index={featuredIndex}
+                    total={Math.min(listTracks.length, 4)}
+                    onPress={() => handleSelectTrack(listTracks[featuredIndex % listTracks.length])}
+                    onDotPress={setFeaturedIndex}
+                  />
+                ) : null}
+                {listTracks.map((t, index) => (
+                  <TrackRow
+                    key={t.id}
+                    track={t}
+                    rank={!isSearching && category !== 'saved' && category !== 'original' ? index + 1 : null}
+                    showTrendBadge={showTrendBadge}
+                    isSelected={selected?.id === t.id}
+                    isPlaying={selected?.id === t.id && playing}
+                    isSaved={isTrackSaved(t)}
+                    onPress={() => handleSelectTrack(t)}
+                    onToggleSave={() => toggleSaved(t)}
+                  />
+                ))}
+              </>
             )}
           </ScrollView>
 
@@ -462,21 +467,19 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: '#07070d',
-                borderTopLeftRadius: 28,
-                borderTopRightRadius: 28,
+                backgroundColor: '#1a1a1a',
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
                 paddingTop: 18,
                 paddingBottom: Math.max(insets.bottom, 14) + 14,
                 paddingHorizontal: 18,
-                borderTopWidth: 3,
-                borderLeftWidth: 1,
-                borderRightWidth: 1,
-                borderColor: 'rgba(255,200,1,0.55)',
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderColor: 'rgba(255,255,255,0.12)',
                 shadowColor: '#000',
-                shadowOpacity: 0.6,
-                shadowRadius: 24,
-                shadowOffset: { width: 0, height: -10 },
-                elevation: 28,
+                shadowOpacity: 0.5,
+                shadowRadius: 20,
+                shadowOffset: { width: 0, height: -8 },
+                elevation: 24,
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 }}>
@@ -509,63 +512,67 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
                   onPress={togglePlay}
                   hitSlop={10}
                   style={({ pressed }) => ({
-                    width: 52, height: 52, borderRadius: 26,
-                    backgroundColor: '#1DB954',
+                    width: 48, height: 48, borderRadius: 24,
+                    backgroundColor: '#fff',
                     alignItems: 'center', justifyContent: 'center',
                     opacity: pressed ? 0.88 : 1,
-                    borderWidth: 2,
-                    borderColor: 'rgba(255,255,255,0.25)',
                   })}
                 >
-                  <Ionicons name={playing ? 'pause' : 'play'} size={24} color="#000" style={playing ? null : { marginLeft: 3 }} />
+                  <Ionicons name={playing ? 'pause' : 'play'} size={22} color="#000" style={playing ? null : { marginLeft: 3 }} />
                 </Pressable>
               </View>
 
-              <View style={{
-                alignSelf: 'flex-start',
-                paddingHorizontal: 10,
-                paddingVertical: 5,
-                borderRadius: 8,
-                backgroundColor: 'rgba(255,200,1,0.12)',
-                marginBottom: 10,
-              }}
-              >
-                <Text style={{ color: '#ffc801', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>
-                  {`CLIP  ${formatMs(startMs)}  →  ${formatMs(startMs + CLIP_DURATION_MS)}`}
+              <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600', marginBottom: 4 }}>
+                {`${formatMs(startMs)} – ${formatMs(clipDurationMs)} · ${formatDuration(selected.duration_ms)}`}
+              </Text>
+              {!selected.preview_url ? (
+                <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginBottom: 8 }}>
+                  No audio preview — sticker only
                 </Text>
-              </View>
-              <GestureDetector gesture={trimPanGesture}>
-                <View
-                  onLayout={onTrackBarLayout}
-                  style={{
-                    height: 68, borderRadius: 16,
-                    backgroundColor: 'rgba(255,255,255,0.03)',
-                    overflow: 'hidden',
-                    position: 'relative',
-                    borderWidth: 1.5,
-                    borderColor: 'rgba(255,200,1,0.22)',
-                  }}
-                >
-                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 2 }}>
-                    {waveformBars.map((h, i) => (
-                      <View
-                        key={i}
-                        style={{
-                          flex: 1,
-                          height: `${h * 88}%`,
-                          backgroundColor: 'rgba(255,200,1,0.25)',
-                          borderRadius: 2,
-                        }}
-                      />
-                    ))}
+              ) : (
+                <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginBottom: 8 }}>
+                  Preview loops for the full song segment
+                </Text>
+              )}
+              {selected.preview_url ? (
+                <GestureDetector gesture={trimPanGesture}>
+                  <View
+                    onLayout={onTrackBarLayout}
+                    style={{
+                      height: 68, borderRadius: 16,
+                      backgroundColor: 'rgba(255,255,255,0.03)',
+                      overflow: 'hidden',
+                      position: 'relative',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 2 }}>
+                      {waveformBars.map((h, i) => (
+                        <View
+                          key={i}
+                          style={{
+                            flex: 1,
+                            height: `${h * 88}%`,
+                            backgroundColor: 'rgba(255,255,255,0.2)',
+                            borderRadius: 2,
+                          }}
+                        />
+                      ))}
+                    </View>
+                    <Trimmable
+                      startMs={startMs}
+                      waveformBars={waveformBars}
+                      clipDurationMs={clipDurationMs}
+                      previewPlayableMs={previewPlayableMs}
+                    />
+                    <Playhead audioPos={audioPos} totalMs={clipDurationMs} />
                   </View>
-                  <Trimmable startMs={startMs} waveformBars={waveformBars} />
-                  <Playhead audioPos={audioPos} />
-                </View>
-              </GestureDetector>
+                </GestureDetector>
+              ) : null}
 
-              <Text style={{ color: 'rgba(255,255,255,0.38)', fontSize: 10, fontWeight: '900', letterSpacing: 1.4, marginTop: 18, marginBottom: 10 }}>
-                ON YOUR STORY
+              <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600', marginTop: 18, marginBottom: 10 }}>
+                Display style
               </Text>
               <ScrollView
                 horizontal
@@ -582,11 +589,9 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
                         paddingHorizontal: 16,
                         paddingVertical: 11,
                         borderRadius: 999,
-                        backgroundColor: active ? '#ffc801' : 'rgba(255,255,255,0.06)',
+                        backgroundColor: active ? '#fff' : '#262626',
                         opacity: pressed ? 0.88 : 1,
                         flexDirection: 'row', alignItems: 'center', gap: 7,
-                        borderWidth: 1.5,
-                        borderColor: active ? '#ffc801' : 'rgba(255,255,255,0.12)',
                       })}
                     >
                       <Ionicons name={s.icon} size={15} color={active ? '#000' : 'rgba(255,255,255,0.85)'} />
@@ -607,25 +612,15 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
                 style={({ pressed }) => ({
                   marginTop: 16,
                   width: '100%',
-                  paddingVertical: 16,
-                  borderRadius: 16,
-                  backgroundColor: '#ffc801',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  backgroundColor: '#3897F0',
                   opacity: pressed ? 0.9 : 1,
-                  flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 10,
-                  borderWidth: 2,
-                  borderColor: 'rgba(0,0,0,0.12)',
-                  shadowColor: '#ffc801',
-                  shadowOpacity: 0.45,
-                  shadowRadius: 16,
-                  shadowOffset: { width: 0, height: 4 },
-                  elevation: 8,
                 })}
               >
-                <Ionicons name="checkmark-circle" size={22} color="#000" />
-                <Text style={{ color: '#000', fontWeight: '900', fontSize: 16 }}>Add to story</Text>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Done</Text>
               </Pressable>
             </View>
           ) : null}
@@ -636,110 +631,110 @@ export default function MusicPickerSheet({ visible, onClose, onPick }) {
 }
 
 // ─── Pieces ──────────────────────────────────────────────────────────────
-function TrackRow({ track, isSelected, isPlaying, onPress }) {
+function FeaturedCard({ track, index, total, onPress, onDotPress }) {
+  if (!track) return null;
+  return (
+    <View style={styles.featuredWrap}>
+      <Pressable onPress={onPress} style={styles.featuredCard}>
+        {track.cover_url ? (
+          <Image
+            source={{ uri: track.cover_url }}
+            style={styles.featuredBg}
+            blurRadius={Platform.OS === 'ios' ? 24 : 6}
+          />
+        ) : null}
+        <View style={styles.featuredOverlay} />
+        <View style={styles.featuredContent}>
+          {track.cover_url ? (
+            <Image source={{ uri: track.cover_url }} style={styles.featuredArt} />
+          ) : (
+            <View style={[styles.featuredArt, styles.artFallback]}>
+              <Ionicons name="musical-note" size={24} color="#fff" />
+            </View>
+          )}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1} style={styles.featuredTitle}>{track.title}</Text>
+            <Text numberOfLines={1} style={styles.featuredArtist}>{track.artist}</Text>
+          </View>
+        </View>
+      </Pressable>
+      <View style={styles.dotsRow}>
+        {Array.from({ length: total }).map((_, i) => (
+          <Pressable key={i} onPress={() => onDotPress?.(i)} hitSlop={8}>
+            <View style={[styles.dot, i === (index % total) && styles.dotActive]} />
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function TrackRow({
+  track, rank, showTrendBadge, isSelected, isPlaying, isSaved, onPress, onToggleSave,
+}) {
+  const hasPreview = !!track?.preview_url;
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => ({
-        marginHorizontal: 12,
-        marginVertical: 5,
-        borderRadius: 16,
-        backgroundColor: isSelected ? 'rgba(29,185,84,0.14)' : 'rgba(255,255,255,0.04)',
-        borderWidth: 1,
-        borderColor: isSelected ? 'rgba(29,185,84,0.5)' : 'rgba(255,255,255,0.06)',
-        opacity: pressed ? 0.92 : 1,
-        overflow: 'hidden',
-      })}
+      style={({ pressed }) => [
+        styles.trackRow,
+        isSelected && styles.trackRowSelected,
+        { opacity: pressed ? 0.88 : (hasPreview ? 1 : 0.55) },
+      ]}
     >
-      <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-      }}
-      >
-        <View style={{ width: 54, height: 54 }}>
-          {track.cover_url ? (
-            <Image
-              source={{ uri: track.cover_url }}
-              style={{ width: 54, height: 54, borderRadius: 12, backgroundColor: '#222' }}
-            />
-          ) : (
-            <View style={{
-              width: 54, height: 54, borderRadius: 12,
-              backgroundColor: 'rgba(255,255,255,0.08)',
-              alignItems: 'center', justifyContent: 'center',
-            }}
-            >
-              <Ionicons name="musical-note" size={22} color="rgba(255,255,255,0.85)" />
-            </View>
-          )}
-          {isSelected ? (
-            <View style={{
-              position: 'absolute', inset: 0, borderRadius: 12,
-              backgroundColor: 'rgba(0,0,0,0.4)',
-              alignItems: 'center', justifyContent: 'center',
-            }}
-            >
-              <Ionicons name={isPlaying ? 'pause' : 'play'} size={22} color="#fff" />
+      {rank ? <Text style={styles.rank}>{rank}</Text> : null}
+
+      <View style={styles.artWrap}>
+        {track.cover_url ? (
+          <Image source={{ uri: track.cover_url }} style={styles.art} />
+        ) : (
+          <View style={[styles.art, styles.artFallback]}>
+            <Ionicons name="musical-note" size={18} color="rgba(255,255,255,0.7)" />
+          </View>
+        )}
+        {isSelected ? (
+          <View style={styles.artPlayOverlay}>
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.trackMeta}>
+        <View style={styles.titleRow}>
+          <Text numberOfLines={1} style={styles.trackTitle}>{track.title}</Text>
+          {track.explicit ? (
+            <View style={styles.explicitBadge}>
+              <Text style={styles.explicitText}>E</Text>
             </View>
           ) : null}
         </View>
-
-        <View style={{ flex: 1, marginLeft: 12, marginRight: 10, minWidth: 0 }}>
-          <Text
-            numberOfLines={1}
-            style={{
-              color: isSelected ? '#1ed760' : '#fff',
-              fontWeight: '800',
-              fontSize: 15,
-              letterSpacing: -0.2,
-            }}
-          >
-            {track.title}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
-            {track.explicit ? (
-              <View style={{
-                paddingHorizontal: 4, paddingVertical: 1,
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                borderRadius: 3,
-              }}
-              >
-                <Text style={{ color: '#fff', fontSize: 8, fontWeight: '900' }}>E</Text>
-              </View>
-            ) : null}
-            <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.52)', fontSize: 13, flexShrink: 1, fontWeight: '500' }}>
-              {track.artist}
-            </Text>
-          </View>
-        </View>
-
-        <View style={{
-          width: 42, height: 42, borderRadius: 21,
-          backgroundColor: isSelected ? '#1DB954' : 'rgba(255,255,255,0.1)',
-          alignItems: 'center', justifyContent: 'center',
-          borderWidth: 1,
-          borderColor: isSelected ? '#1DB954' : 'rgba(255,255,255,0.08)',
-        }}
-        >
-          <Ionicons
-            name={isSelected && isPlaying ? 'pause' : 'play'}
-            size={16}
-            color={isSelected ? '#000' : '#fff'}
-            style={isSelected && isPlaying ? null : { marginLeft: 2 }}
-          />
+        <View style={styles.subRow}>
+          {showTrendBadge ? (
+            <Ionicons name="trending-up" size={12} color="#1DB954" />
+          ) : null}
+          <Text numberOfLines={1} style={styles.trackArtist}>{track.artist}</Text>
+          <Text style={styles.dotSep}>·</Text>
+          <Text style={styles.trackDuration}>{formatDuration(track.duration_ms)}</Text>
         </View>
       </View>
+
+      <Pressable onPress={onToggleSave} hitSlop={12} style={styles.saveBtn}>
+        <Ionicons
+          name={isSaved ? 'bookmark' : 'bookmark-outline'}
+          size={20}
+          color={isSaved ? '#1DB954' : 'rgba(255,255,255,0.85)'}
+        />
+      </Pressable>
     </Pressable>
   );
 }
 
-function Trimmable({ startMs, waveformBars }) {
-  // Window covers 50% of the bar (15s of 30s preview).
-  // Left edge: startMs / (PREVIEW - CLIP) * 50%
-  const windowFraction = 0.5;
-  const leftFraction = (startMs / (PREVIEW_DURATION_MS - CLIP_DURATION_MS)) * (1 - windowFraction);
+function Trimmable({ startMs, waveformBars, clipDurationMs, previewPlayableMs }) {
+  const windowFraction = clipDurationMs > 0
+    ? Math.min(1, previewPlayableMs / clipDurationMs)
+    : 1;
+  const maxStart = Math.max(0, clipDurationMs - previewPlayableMs);
+  const leftFraction = maxStart > 0 ? (startMs / maxStart) * (1 - windowFraction) : 0;
   return (
     <View
       pointerEvents="none"
@@ -749,9 +744,9 @@ function Trimmable({ startMs, waveformBars }) {
         left: `${leftFraction * 100}%`,
         width: `${windowFraction * 100}%`,
         borderWidth: 2,
-        borderColor: '#1DB954',
+        borderColor: '#3897F0',
         borderRadius: 8,
-        backgroundColor: 'rgba(29,185,84,0.18)',
+        backgroundColor: 'rgba(56,151,240,0.2)',
       }}
     >
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, gap: 2 }}>
@@ -761,7 +756,7 @@ function Trimmable({ startMs, waveformBars }) {
             style={{
               flex: 1,
               height: `${h * 80}%`,
-              backgroundColor: '#1DB954',
+              backgroundColor: '#3897F0',
               borderRadius: 1.5,
             }}
           />
@@ -771,8 +766,8 @@ function Trimmable({ startMs, waveformBars }) {
   );
 }
 
-function Playhead({ audioPos }) {
-  const left = `${(audioPos / PREVIEW_DURATION_MS) * 100}%`;
+function Playhead({ audioPos, totalMs }) {
+  const left = `${(audioPos / Math.max(1, totalMs)) * 100}%`;
   return (
     <View
       pointerEvents="none"
@@ -789,39 +784,227 @@ function Playhead({ audioPos }) {
   );
 }
 
-function EmptyState({ onPickSuggestion }) {
-  const suggestions = ['Drake', 'Taylor Swift', 'The Weeknd', 'Bad Bunny', 'Bruno Mars', 'Daft Punk'];
-  return (
-    <View style={{ paddingHorizontal: 20, paddingTop: 24, alignItems: 'center' }}>
-      <Ionicons name="musical-notes-outline" size={42} color="rgba(255,255,255,0.4)" />
-      <Text style={{ color: 'rgba(255,255,255,0.55)', marginTop: 10, textAlign: 'center', fontSize: 13 }}>
-        Search for any song to add it to your story.
-      </Text>
-      <Text style={{ color: 'rgba(255,255,255,0.4)', marginTop: 18, marginBottom: 8, fontSize: 11, letterSpacing: 0.6 }}>
-        TRY
-      </Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 }}>
-        {suggestions.map((s) => (
-          <Pressable
-            key={s}
-            onPress={() => onPickSuggestion?.(s)}
-            style={({ pressed }) => ({
-              paddingHorizontal: 12, paddingVertical: 6,
-              borderRadius: 999,
-              backgroundColor: pressed ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.06)',
-            })}
-          >
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{s}</Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  sheet: {
+    height: SHEET_H,
+    backgroundColor: '#0a0a0a',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    overflow: 'hidden',
+  },
+  handleWrap: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+  },
+  searchWrap: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 11 : 9,
+    borderRadius: 999,
+    backgroundColor: '#1c1c1c',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  searchInput: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  chipsRow: {
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingBottom: 12,
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#1c1c1c',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  chipActive: {
+    backgroundColor: '#1DB954',
+    borderColor: '#1DB954',
+  },
+  chipText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  chipTextActive: {
+    color: '#000',
+  },
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    letterSpacing: -0.3,
+  },
+  featuredWrap: {
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
+  featuredCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    height: 112,
+    backgroundColor: '#1a1a1a',
+  },
+  featuredBg: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.5,
+  },
+  featuredOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+  },
+  featuredContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 12,
+  },
+  featuredArt: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: '#222',
+  },
+  featuredTitle: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 17,
+  },
+  featuredArtist: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  dotActive: {
+    backgroundColor: '#1DB954',
+    width: 18,
+  },
+  trackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  trackRowSelected: {
+    backgroundColor: 'rgba(29,185,84,0.08)',
+  },
+  rank: {
+    width: 22,
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginRight: 8,
+  },
+  artWrap: {
+    width: 48,
+    height: 48,
+    flexShrink: 0,
+  },
+  art: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#222',
+  },
+  artFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#262626',
+  },
+  artPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackMeta: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 10,
+    minWidth: 0,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trackTitle: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
+    flexShrink: 1,
+  },
+  explicitBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 3,
+  },
+  explicitText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  trackArtist: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 13,
+    flexShrink: 1,
+  },
+  dotSep: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 13,
+  },
+  trackDuration: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 13,
+  },
+  saveBtn: {
+    flexShrink: 0,
+    padding: 4,
+  },
+});
 
-function formatMs(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  const mm = Math.floor(s / 60);
-  const ss = s % 60;
-  return `${mm}:${String(ss).padStart(2, '0')}`;
-}
