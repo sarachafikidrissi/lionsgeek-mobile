@@ -11,7 +11,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
 import API from '@/api';
-import { userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -51,7 +50,6 @@ export default function TabLayout() {
   const { user } = useAppContext();
   const userRoles = user?.roles || [];
   const isAdmin = userRoles.some(r => ['admin', 'coach'].includes(r?.toLowerCase?.() || r));
-  const isStrictAdmin = userHasAdminRole(user);
 
   // Map SF Symbols icon names to Ionicons names for cross-platform support
   const getIconName = (sfSymbolName, focused = false) => {
@@ -67,6 +65,7 @@ export default function TabLayout() {
       "magnifyingglass": focused ? "search" : "search-outline",
       "bell.fill": focused ? "notifications" : "notifications-outline",
       "qr-code": focused ? "qr-code" : "qr-code-outline",
+      "ticket": focused ? "ticket" : "ticket-outline",
       "school": focused ? "school" : "school-outline",
     };
     return iconMap[sfSymbolName] || sfSymbolName;
@@ -76,7 +75,7 @@ export default function TabLayout() {
     { route: "index", name: "Home", icon: "house.fill" },
     { route: "reservations", name: "Reservations", icon: "calendar" },
     { route: "training", name: "Training", icon: "school" },
-    { route: "scan", name: "Scan", icon: "qr-code", adminOnly: true },
+    { route: "events", name: "Events", icon: "ticket" },
     { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill" },
     { route: "profile", name: "Profile", icon: "person.fill" },
   ];
@@ -89,6 +88,7 @@ export default function TabLayout() {
     { route: "home", name: "Home", icon: "house.fill", showTab: false }, // Hide duplicate home tab
     { route: "search", name: "Search", icon: "magnifyingglass", showTab: false },
     { route: "notifications", name: "Notifications", icon: "bell.fill", showTab: false },
+    { route: "infoSession", name: "Info Session", icon: "school", showTab: false },
   ]
 
 
@@ -129,7 +129,6 @@ export default function TabLayout() {
           options={{
             headerShown: false,
             title: screen.name,
-            href: screen.adminOnly && !isStrictAdmin ? null : undefined,
             ...(screen.route === 'profile'
               ? {
                   // Tabs keep screens mounted; if we previously opened someone via

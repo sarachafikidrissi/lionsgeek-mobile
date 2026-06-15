@@ -1,5 +1,6 @@
 import { format, isValid, parseISO, startOfDay } from 'date-fns';
 import EventsInfoAPI from '@/api/eventsInfoSection';
+import { userHasAdminRole, userCanAccessScan } from '@/components/helpers/helpers';
 
 // Resolves multilingual event name JSON to a display string.
 export function getEventDisplayName(name) {
@@ -60,13 +61,27 @@ export function isEventActiveForList(event) {
   return eventDay >= today;
 }
 
-// Scan allowed until midnight on the event's calendar day.
+// Scan staff (access_scan): only on the event day, and only until the event datetime.
+// After the event has started/passed, only admins may scan (see userCanScanEvent).
 export function canScanEvent(event) {
   const eventDate = getEventDate(event);
   if (!eventDate) return false;
+  if (hasEventPassed(event)) return false;
+
   const today = startOfDay(new Date());
   const eventDay = startOfDay(eventDate);
   return eventDay.getTime() === today.getTime();
+}
+
+// Admins may scan anytime; scan staff only while canScanEvent(event) is true.
+export function userCanScanEvent(event, user) {
+  if (userHasAdminRole(user)) return Boolean(event);
+  return canScanEvent(event);
+}
+
+// Same window as QR scan: admins anytime; scan staff only on event day before start.
+export function userCanCheckInEvent(event, user) {
+  return userCanScanEvent(event, user);
 }
 
 export function formatEventDate(event) {
@@ -92,6 +107,23 @@ export function normalizeEvents(events) {
   return events.filter((event) => getEventDate(event));
 }
 
+export function isPrivateEvent(event) {
+  return Boolean(event?.is_private);
+}
+
+// Public events only — private events are hidden from regular app users.
+export function filterPublicEvents(events) {
+  if (!Array.isArray(events)) return [];
+  return events.filter((event) => !isPrivateEvent(event));
+}
+
+// Scan staff and admins see all events; everyone else sees public events only.
+export function filterEventsForViewer(events, user) {
+  const list = normalizeEvents(events);
+  if (userCanAccessScan(user)) return list;
+  return filterPublicEvents(list);
+}
+
 export function sortEventsByDate(events, order = 'desc') {
   return [...events].sort((a, b) => {
     const da = getEventDate(a)?.getTime() ?? 0;
@@ -106,7 +138,10 @@ export function filterEventsByName(events, query) {
   return events.filter((event) => getEventDisplayName(event?.name).toLowerCase().includes(q));
 }
 
-export function getEventStatusLabel(event) {
+export function getEventStatusLabel(event, options = {}) {
+  const { treatPastByDateTime = false } = options;
+  if (treatPastByDateTime && hasEventPassed(event)) return 'Past';
+
   const eventDate = getEventDate(event);
   if (!eventDate) return 'Unknown';
   const today = startOfDay(new Date());
@@ -114,6 +149,32 @@ export function getEventStatusLabel(event) {
   if (eventDay.getTime() === today.getTime()) return 'Today';
   if (eventDay > today) return 'Upcoming';
   return 'Past';
+}
+
+// True when the event datetime has already passed (matches web booking rules).
+export function hasEventPassed(event) {
+  const eventDate = getEventDate(event);
+  if (!eventDate) return true;
+  return Date.now() > eventDate.getTime();
+}
+
+// Non-scan users may book when the event is still open and has remaining capacity.
+export function canBookEvent(event) {
+  if (!event || hasEventPassed(event)) return false;
+  const remaining = Number(event?.capacity);
+  return Number.isFinite(remaining) && remaining > 0;
+}
+
+// Admins may register participants anytime, even after the event or when full.
+export function userCanBookEvent(event, user) {
+  if (!event) return false;
+  if (userHasAdminRole(user)) return true;
+  return canBookEvent(event);
+}
+
+export function getEventRemainingCapacity(event) {
+  const remaining = Number(event?.capacity);
+  return Number.isFinite(remaining) ? remaining : 0;
 }
 
 // API stores remaining spots in event.capacity; original total = remaining + registrations.

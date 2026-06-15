@@ -1,28 +1,40 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  TextInput,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { userHasAdminRole } from '@/components/helpers/helpers';
-import EventsInfoAPI from '@/api/eventsInfoSection';
+import { userCanAccessScan } from '@/components/helpers/helpers';
+import { InfoSessionAPI } from '@/api/infoSessionSection';
 import AppLayout from '@/components/layout/AppLayout';
-import AccessDenied from '@/components/scan/partials/AccessDenied';
+import AccessDenied from '@/components/events/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
-import ParticipantsList from '@/components/scan/partials/ParticipantsList';
-import EventCoverImage from '@/components/scan/partials/EventCoverImage';
-import { Colors } from '@/constants/Colors';
+import ParticipantsList from '@/components/events/partials/ParticipantsList';
+import InfoSessionHero from '@/components/infoSession/partials/InfoSessionHero';
+import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
-  canScanEvent,
-  formatEventCapacity,
-  getEventCoverUrl,
-  getEventDisplayName,
-  getEventStatusLabel,
-  getEventTotalCapacity,
+  canScanSession,
+  formatSessionCapacity,
+  formatSessionDate,
   getParticipantCounts,
-} from '@/components/scan/helpers';
+  getSessionAvailabilityLabel,
+  getSessionStatusLabel,
+  mapInfoParticipants,
+} from '@/components/infoSession/helpers';
 
 function StatusBadge({ status }) {
+  const isDark = useColorScheme() === 'dark';
+  const accentIcon = getAccentIconColor(isDark);
+
   if (status === 'Today') {
     return (
       <View className="flex-row items-center gap-1.5 bg-good/20 px-3 py-1.5 rounded-full">
@@ -33,9 +45,9 @@ function StatusBadge({ status }) {
   }
   if (status === 'Upcoming') {
     return (
-      <View className="flex-row items-center gap-1.5 bg-alpha/20 px-3 py-1.5 rounded-full">
-        <Ionicons name="time-outline" size={12} color={Colors.alpha} />
-        <Text className="text-xs font-bold text-alpha">Upcoming</Text>
+      <View className="flex-row items-center gap-1.5 bg-beta/20 dark:bg-alpha/20 px-3 py-1.5 rounded-full">
+        <Ionicons name="time-outline" size={12} color={accentIcon} />
+        <Text className="text-xs font-bold text-beta dark:text-alpha">Upcoming</Text>
       </View>
     );
   }
@@ -45,7 +57,6 @@ function StatusBadge({ status }) {
     </View>
   );
 }
-
 
 function SectionCard({ children, className = '' }) {
   return (
@@ -58,6 +69,7 @@ function SectionCard({ children, className = '' }) {
 }
 
 function AttendanceStat({ icon, label, value, tone = 'alpha' }) {
+  const isDark = useColorScheme() === 'dark';
   const toneClasses =
     tone === 'good'
       ? {
@@ -67,8 +79,8 @@ function AttendanceStat({ icon, label, value, tone = 'alpha' }) {
           label: 'text-good',
         }
       : {
-          box: 'bg-alpha/12 border-alpha/20',
-          icon: Colors.alpha,
+          box: 'bg-beta/12 dark:bg-alpha/12 border-beta/20 dark:border-alpha/20',
+          icon: getAccentIconColor(isDark),
           value: 'text-beta dark:text-light',
           label: 'text-beta/55 dark:text-light/55',
         };
@@ -95,13 +107,17 @@ function DetailSkeleton({ isDark }) {
   );
 }
 
-export default function EventDetail() {
+export default function InfoSessionDetailScreen() {
   const { user } = useAppContext();
-  const { eventId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const accentIcon = getAccentIconColor(isDark);
+  const accentFill = getAccentFillColor(isDark);
+  const onAccentText = getOnAccentTextColor(isDark);
 
-  const [event, setEvent] = useState(null);
+  const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -110,8 +126,6 @@ export default function EventDetail() {
   const skipFocusRefresh = useRef(true);
   const scrollViewRef = useRef(null);
 
-  // Scroll to bottom when the participant search input is focused so the
-  // keyboard never covers it — more reliable than KeyboardAvoidingView alone.
   const handleSearchFocus = useCallback(() => {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -122,37 +136,35 @@ export default function EventDetail() {
     const q = participantSearch.trim().toLowerCase();
     if (!q) return participants;
     return participants.filter(
-      (p) =>
-        p.name?.toLowerCase().includes(q) ||
-        p.email?.toLowerCase().includes(q)
+      (p) => p.name?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q)
     );
   }, [participants, participantSearch]);
 
-  const fetchEvent = useCallback(
+  const fetchSession = useCallback(
     async (isRefresh = false) => {
-      if (!eventId) return;
+      if (!id) return;
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
 
       try {
-        const response = await EventsInfoAPI.getEvent(eventId);
-        setEvent(response?.data?.event ?? null);
-        setParticipants(Array.isArray(response?.data?.participants) ? response.data.participants : []);
+        const response = await InfoSessionAPI.getSessionData(id);
+        setSession(response?.data?.session ?? null);
+        setParticipants(mapInfoParticipants(response?.data?.participants));
       } catch (err) {
-        console.error('[SCAN] Event detail error:', err);
-        setError('Could not load event details.');
+        console.error('[SCAN] Info session detail error:', err);
+        setError('Could not load info session details.');
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [eventId]
+    [id]
   );
 
   useEffect(() => {
-    fetchEvent();
-  }, [fetchEvent]);
+    fetchSession();
+  }, [fetchSession]);
 
   useFocusEffect(
     useCallback(() => {
@@ -160,38 +172,38 @@ export default function EventDetail() {
         skipFocusRefresh.current = false;
         return;
       }
-      fetchEvent(true);
-    }, [fetchEvent])
+      fetchSession(true);
+    }, [fetchSession])
   );
 
-  const scannable = event ? canScanEvent(event) : false;
-  const title = getEventDisplayName(event?.name);
-  const coverUrl = getEventCoverUrl(event?.cover);
-  const statusLabel = event ? getEventStatusLabel(event) : null;
-  const capacityLabel = event ? formatEventCapacity(event, participants.length) : null;
-  const totalCapacity = event ? getEventTotalCapacity(event, participants.length) : null;
+  const scannable = session ? canScanSession(session) : false;
+  const title = session?.name || 'Info Session';
+  const statusLabel = session ? getSessionStatusLabel(session) : null;
+  const availabilityLabel = session ? getSessionAvailabilityLabel(session) : null;
+  const capacityLabel = session ? formatSessionCapacity(session, participants.length) : null;
+  const places = Number(session?.places);
   const capacityFill =
-    totalCapacity && totalCapacity > 0 ? Math.min(1, participants.length / totalCapacity) : 0;
+    Number.isFinite(places) && places > 0 ? Math.min(1, participants.length / places) : 0;
   const { registered: registeredCount, scanned: scannedCount } = getParticipantCounts(participants);
 
   const openScanner = () => {
     router.push({
-      pathname: '/(tabs)/scan/scanner',
-      params: { eventId: String(eventId) },
+      pathname: '/(tabs)/infoSession/scanner',
+      params: { id: String(id) },
     });
   };
 
   const openParticipant = (participant) => {
     router.push({
-      pathname: '/(tabs)/scan/participant/[participantId]',
+      pathname: '/(tabs)/infoSession/participants/[id]',
       params: {
-        participantId: String(participant.id),
-        eventId: String(eventId),
+        id: String(participant.id),
+        sessionId: String(id),
       },
     });
   };
 
-  if (!userHasAdminRole(user)) {
+  if (!userCanAccessScan(user)) {
     return <AccessDenied />;
   }
 
@@ -204,18 +216,18 @@ export default function EventDetail() {
         <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
           <Pressable
             onPress={() => router.back()}
-            className="w-10 h-10 rounded-xl bg-alpha/15 items-center justify-center active:opacity-70"
+            className="w-10 h-10 rounded-xl bg-beta/15 dark:bg-alpha/15 items-center justify-center active:opacity-70"
           >
-            <Ionicons name="arrow-back" size={20} color={Colors.alpha} />
+            <Ionicons name="arrow-back" size={20} color={accentIcon} />
           </Pressable>
           <View className="flex-1 min-w-0">
             <Text className="text-xs font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
-              Scan
+              Info Session
             </Text>
             {loading ? (
               <Skeleton width={160} height={16} borderRadius={6} isDark={isDark} />
             ) : (
-              <Text className="text-base font-bold text-beta dark:text-light" numberOfLines={1}>
+              <Text className="text-base font-bold text-beta dark:text-light capitalize" numberOfLines={1}>
                 {title}
               </Text>
             )}
@@ -225,17 +237,17 @@ export default function EventDetail() {
               onPress={scannable ? openScanner : undefined}
               disabled={!scannable}
               className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl ${
-                scannable ? 'bg-alpha active:opacity-80' : 'bg-beta/10 dark:bg-light/10'
+                scannable ? 'bg-beta dark:bg-alpha active:opacity-80' : 'bg-beta/10 dark:bg-light/10'
               }`}
             >
               <Ionicons
                 name="qr-code"
                 size={17}
-                color={scannable ? Colors.beta : isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'}
+                color={scannable ? onAccentText : isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'}
               />
               <Text
                 className={`text-xs font-bold ${
-                  scannable ? 'text-beta' : 'text-beta/35 dark:text-light/35'
+                  scannable ? 'text-light dark:text-beta' : 'text-beta/35 dark:text-light/35'
                 }`}
               >
                 {scannable ? 'Scan' : 'Not today'}
@@ -256,11 +268,11 @@ export default function EventDetail() {
             </Text>
             <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-2">{error}</Text>
             <Pressable
-              onPress={() => fetchEvent()}
-              className="mt-6 flex-row items-center gap-2 bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
+              onPress={() => fetchSession()}
+              className="mt-6 flex-row items-center gap-2 bg-beta dark:bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
             >
-              <Ionicons name="refresh" size={18} color={Colors.beta} />
-              <Text className="text-beta font-bold">Try again</Text>
+              <Ionicons name="refresh" size={18} color={onAccentText} />
+              <Text className="text-light dark:text-beta font-bold">Try again</Text>
             </Pressable>
           </View>
         ) : (
@@ -274,20 +286,40 @@ export default function EventDetail() {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => fetchEvent(true)}
-                tintColor={Colors.alpha}
-                colors={[Colors.alpha]}
+                onRefresh={() => fetchSession(true)}
+                tintColor={accentFill}
+                colors={[accentFill]}
               />
             }
           >
             <View className="relative">
-              <EventCoverImage uri={coverUrl} height={200} borderRadius={20} />
+              <InfoSessionHero formation={session?.formation} height={200} borderRadius={20} />
               {statusLabel ? (
                 <View className="absolute top-3 right-3">
                   <StatusBadge status={statusLabel} />
                 </View>
               ) : null}
             </View>
+
+            <SectionCard className="p-4">
+              <View className="flex-row flex-wrap gap-2">
+                <View className="bg-beta/15 dark:bg-alpha/15 px-2.5 py-1 rounded-full">
+                  <Text className="text-xs font-bold text-beta dark:text-light">{session?.formation}</Text>
+                </View>
+                <View className="bg-beta/10 dark:bg-light/10 px-2.5 py-1 rounded-full">
+                  <Text className="text-xs font-bold text-beta/60 dark:text-light/60 capitalize">
+                    {(session?.format || 'long') === 'long' ? 'Long' : 'Short'}
+                  </Text>
+                </View>
+                <View className="bg-good/15 px-2.5 py-1 rounded-full">
+                  <Text className="text-xs font-bold text-good">{availabilityLabel}</Text>
+                </View>
+              </View>
+              <View className="flex-row items-center gap-2 mt-3">
+                <Ionicons name="time-outline" size={16} color={accentIcon} />
+                <Text className="text-sm text-beta/70 dark:text-light/70">{formatSessionDate(session)}</Text>
+              </View>
+            </SectionCard>
 
             {!scannable ? (
               <SectionCard className="p-4">
@@ -298,7 +330,7 @@ export default function EventDetail() {
                   <View className="flex-1 min-w-0">
                     <Text className="text-sm font-bold text-beta dark:text-light">Scan not available yet</Text>
                     <Text className="text-xs text-beta/55 dark:text-light/55 mt-1 leading-5">
-                      QR scanning opens on the event day and stays available until midnight.
+                      QR scanning opens on the session day and stays available until midnight.
                     </Text>
                   </View>
                 </View>
@@ -308,13 +340,13 @@ export default function EventDetail() {
             <SectionCard className="p-4">
               <View className="flex-row items-center justify-between mb-1">
                 <View className="flex-row items-center gap-2">
-                  <View className="w-8 h-8 rounded-lg bg-alpha/15 items-center justify-center">
-                    <Ionicons name="people" size={16} color={Colors.alpha} />
+                  <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-alpha/15 items-center justify-center">
+                    <Ionicons name="people" size={16} color={accentIcon} />
                   </View>
                   <Text className="text-base font-bold text-beta dark:text-light">Registrations</Text>
                 </View>
                 {capacityLabel ? (
-                  <View className="bg-alpha/15 px-2.5 py-1 rounded-full">
+                  <View className="bg-beta/15 dark:bg-alpha/15 px-2.5 py-1 rounded-full">
                     <Text className="text-xs font-bold text-beta dark:text-light">{capacityLabel}</Text>
                   </View>
                 ) : (
@@ -325,11 +357,7 @@ export default function EventDetail() {
               </View>
 
               <View className="flex-row gap-3 mt-3">
-                <AttendanceStat
-                  icon="person-add-outline"
-                  label="Registered"
-                  value={registeredCount}
-                />
+                <AttendanceStat icon="person-add-outline" label="Registered" value={registeredCount} />
                 <AttendanceStat
                   icon="qr-code-outline"
                   label="Came (scanned)"
@@ -338,27 +366,31 @@ export default function EventDetail() {
                 />
               </View>
 
-              {totalCapacity ? (
+              {Number.isFinite(places) && places > 0 ? (
                 <View className="mt-3 mb-1">
                   <View className="h-1.5 rounded-full bg-beta/8 dark:bg-light/8 overflow-hidden">
                     <View
-                      className="h-full rounded-full bg-alpha"
+                      className="h-full rounded-full bg-beta dark:bg-alpha"
                       style={{ width: `${capacityFill * 100}%` }}
                     />
                   </View>
                   <Text className="text-[11px] text-beta/45 dark:text-light/45 mt-1.5">
-                    {registeredCount} of {totalCapacity} spots filled · {scannedCount} checked in
+                    {registeredCount} of {places} spots filled · {scannedCount} checked in
                   </Text>
                 </View>
               ) : (
                 <Text className="text-[11px] text-beta/45 dark:text-light/45 mt-3">
-                  {scannedCount} of {registeredCount} registered visitors checked in
+                  {scannedCount} of {registeredCount} registered participants checked in
                 </Text>
               )}
 
               {participants.length > 0 ? (
                 <View className="flex-row items-center gap-2 mt-4 mb-1 rounded-xl border border-beta/10 dark:border-light/10 bg-beta/4 dark:bg-light/4 px-3">
-                  <Ionicons name="search" size={16} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+                  <Ionicons
+                    name="search"
+                    size={16}
+                    color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
+                  />
                   <TextInput
                     value={participantSearch}
                     onChangeText={setParticipantSearch}
@@ -371,7 +403,11 @@ export default function EventDetail() {
                   />
                   {participantSearch.length > 0 ? (
                     <Pressable onPress={() => setParticipantSearch('')} hitSlop={8}>
-                      <Ionicons name="close-circle" size={16} color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'} />
+                      <Ionicons
+                        name="close-circle"
+                        size={16}
+                        color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
+                      />
                     </Pressable>
                   ) : null}
                 </View>
@@ -381,9 +417,7 @@ export default function EventDetail() {
                 participants={filteredParticipants}
                 onParticipantPress={openParticipant}
                 emptyMessage={
-                  participantSearch
-                    ? `No participants match "${participantSearch}".`
-                    : undefined
+                  participantSearch ? `No participants match "${participantSearch}".` : undefined
                 }
               />
             </SectionCard>

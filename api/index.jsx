@@ -405,13 +405,34 @@ const searchUsers = async (query, token) => {
     return response?.data;
 };
 
-// ─── Music search (used for the story music sticker) ──────────────────────
-// Returns: { source: 'spotify+itunes'|'itunes', items: [{ id, title, artist,
-// album, cover_url, preview_url, duration_ms, explicit, source }] }
-const searchMusic = async (query, token, { limit = 20 } = {}) => {
-    const q = encodeURIComponent(String(query || '').trim());
-    const response = await get(`mobile/music/search?q=${q}&limit=${limit}`, token);
+// ─── Music browse (story music sticker) ───────────────────────────────────
+// GET /mobile/music/browse?section=top_morocco|search|trending|original&country=MA&q=&limit=50
+// Returns: { section, title, country, source, items[], total, preview_max_ms, story_max_ms }
+const browseMusic = async (token, {
+    section = 'top_morocco',
+    country = 'MA',
+    q = '',
+    limit = 50,
+} = {}) => {
+    const params = new URLSearchParams({
+        section: String(section),
+        country: String(country),
+        limit: String(limit),
+    });
+    const query = String(q || '').trim();
+    if (query) params.set('q', query);
+    const response = await get(`mobile/music/browse?${params.toString()}`, token);
     return response?.data;
+};
+
+/** @deprecated use browseMusic({ section: 'search', q }) */
+const searchMusic = async (query, token, { limit = 50 } = {}) => {
+    return browseMusic(token, { section: 'search', q: query, limit });
+};
+
+/** @deprecated use browseMusic({ section: 'top_morocco' }) */
+const getMusicCharts = async (token, { country = 'MA', limit = 50 } = {}) => {
+    return browseMusic(token, { section: 'top_morocco', country, limit });
 };
 
 export default {
@@ -450,5 +471,7 @@ export default {
     addCloseFriend,
     removeCloseFriend,
     searchUsers,
+    browseMusic,
     searchMusic,
+    getMusicCharts,
 };

@@ -5,7 +5,7 @@ import { Colors } from '@/constants/Colors';
 
 const AUTO_DISMISS_MS = 2000;
 
-export default function ScanResultOverlay({ visible, result, onDismiss }) {
+export default function ScanResultOverlay({ visible, result, onDismiss, dismissHint }) {
   useEffect(() => {
     if (!visible || !result) return undefined;
 
@@ -43,7 +43,9 @@ export default function ScanResultOverlay({ visible, result, onDismiss }) {
 
           <Text style={styles.message}>{result.message}</Text>
 
-          <Text style={styles.hint}>Returning to event details in 2 seconds…</Text>
+          <Text style={styles.hint}>
+            {dismissHint ?? 'Returning to event details in 2 seconds…'}
+          </Text>
         </Pressable>
       </Pressable>
     </View>

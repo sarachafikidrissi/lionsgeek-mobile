@@ -150,3 +150,10 @@ export function normalizeSavedPostsList(list) {
     .filter(Boolean);
 }
 
+// True when the user may access Events / Info Session scan flows (admin or explicit grant).
+export function userCanAccessScan(user) {
+  if (userHasAdminRole(user)) return true;
+  const flag = user?.access_scan;
+  return flag === 1 || flag === true || flag === '1';
+}
+

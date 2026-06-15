@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { userHasAdminRole } from '@/components/helpers/helpers';
+import { userCanAccessScan } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
-import AccessDenied from '@/components/scan/partials/AccessDenied';
+import AccessDenied from '@/components/events/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
-import { Colors } from '@/constants/Colors';
+import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
   fetchParticipantOtherRegistrations,
@@ -16,25 +16,27 @@ import {
   formatEventDate,
   getEventDisplayName,
   getEventStatusLabel,
+  hasEventPassed,
   getParticipantDetailRows,
   isSameEventId,
-} from '@/components/scan/helpers';
+  userCanCheckInEvent,
+} from '@/components/events/helpers';
 
 function SectionCard({ children, className = '' }) {
   return (
     <View
-      className={`bg-light dark:bg-dark_gray border border-beta/8 dark:border-light/8 rounded-2xl overflow-hidden ${className}`}
+      className={`bg-white dark:bg-card border border-beta/8 dark:border-card_border rounded-2xl overflow-hidden ${className}`}
     >
       {children}
     </View>
   );
 }
 
-function DetailRow({ icon, label, value }) {
+function DetailRow({ icon, label, value, accentIcon }) {
   return (
     <View className="flex-row items-start gap-3 py-3 border-b border-beta/6 dark:border-light/6 last:border-b-0">
-      <View className="w-9 h-9 rounded-xl bg-alpha/12 items-center justify-center mt-0.5">
-        <Ionicons name={icon} size={16} color={Colors.alpha} />
+      <View className="w-9 h-9 rounded-xl bg-beta/12 dark:bg-alpha/12 items-center justify-center mt-0.5">
+        <Ionicons name={icon} size={16} color={accentIcon} />
       </View>
       <View className="flex-1 min-w-0">
         <Text className="text-[10px] font-bold uppercase tracking-wide text-beta/45 dark:text-light/45">
@@ -46,7 +48,7 @@ function DetailRow({ icon, label, value }) {
   );
 }
 
-function OtherEventRow({ item, isDark, onPress }) {
+function OtherEventRow({ item, isDark, onPress, accentIcon }) {
   const title = getEventDisplayName(item.event?.name);
   const status = getEventStatusLabel(item.event);
   const scanned = Boolean(item.registration?.is_visited);
@@ -71,15 +73,15 @@ function OtherEventRow({ item, isDark, onPress }) {
               <Text className="text-[10px] font-bold text-good">{status}</Text>
             </View>
           ) : status === 'Upcoming' ? (
-            <View className="bg-alpha/15 px-2 py-1 rounded-full">
-              <Text className="text-[10px] font-bold text-alpha">{status}</Text>
+            <View className="bg-beta/15 dark:bg-alpha/15 px-2 py-1 rounded-full">
+              <Text className="text-[10px] font-bold text-beta dark:text-alpha">{status}</Text>
             </View>
           ) : (
             <View className="bg-beta/10 dark:bg-light/10 px-2 py-1 rounded-full">
               <Text className="text-[10px] font-bold text-beta/55 dark:text-light/55">{status}</Text>
             </View>
           )}
-          <Ionicons name="chevron-forward" size={16} color={Colors.alpha} />
+          <Ionicons name="chevron-forward" size={16} color={accentIcon} />
         </View>
       </View>
       <View className="flex-row items-center gap-2 mt-2">
@@ -103,9 +105,12 @@ export default function ParticipantDetail() {
   const { user } = useAppContext();
   const params = useLocalSearchParams();
   const eventId = Array.isArray(params.eventId) ? params.eventId[0] : params.eventId;
-  const participantId = Array.isArray(params.participantId) ? params.participantId[0] : params.participantId;
+  const participantId = Array.isArray(params.id) ? params.id[0] : params.id;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const accentIcon = getAccentIconColor(isDark);
+  const accentFill = getAccentFillColor(isDark);
+  const onAccentText = getOnAccentTextColor(isDark);
 
   const [participant, setParticipant] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
@@ -114,8 +119,13 @@ export default function ParticipantDetail() {
   const [loadingOther, setLoadingOther] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [checkingIn, setCheckingIn] = useState(false);
 
   const detailRows = useMemo(() => getParticipantDetailRows(participant), [participant]);
+
+  const eventHasPassed = currentEvent ? hasEventPassed(currentEvent) : false;
+  const checkedIn = Boolean(participant?.is_visited);
+  const canShowManualCheckIn = currentEvent ? userCanCheckInEvent(currentEvent, user) : false;
 
   const otherEventsOnly = useMemo(
     () => otherRegistrations.filter((item) => !isSameEventId(item.event?.id, eventId)),
@@ -123,7 +133,7 @@ export default function ParticipantDetail() {
   );
 
   const openOtherEvent = (otherEventId) => {
-    router.push(`/(tabs)/scan/${otherEventId}`);
+    router.push(`/(tabs)/events/${otherEventId}`);
   };
 
   const loadParticipant = useCallback(
@@ -178,7 +188,34 @@ export default function ParticipantDetail() {
     loadParticipant();
   }, [loadParticipant]);
 
-  if (!userHasAdminRole(user)) {
+  const handleManualCheckIn = useCallback(async () => {
+    if (!participantId || !eventId || checkingIn || checkedIn) return;
+
+    Alert.alert(
+      'Manual check-in',
+      'Mark this participant as checked in without scanning their QR code?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Check in',
+          onPress: async () => {
+            setCheckingIn(true);
+            try {
+              await EventsInfoAPI.manualEventChecking(participantId, eventId);
+              setParticipant((prev) => (prev ? { ...prev, is_visited: true } : prev));
+            } catch (err) {
+              console.error('[SCAN] Manual check-in error:', err);
+              Alert.alert('Check-in failed', 'Could not mark this participant as checked in.');
+            } finally {
+              setCheckingIn(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [participantId, eventId, checkingIn, checkedIn]);
+
+  if (!userCanAccessScan(user)) {
     return <AccessDenied />;
   }
 
@@ -191,9 +228,9 @@ export default function ParticipantDetail() {
         <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
           <Pressable
             onPress={() => router.back()}
-            className="w-10 h-10 rounded-xl bg-alpha/15 items-center justify-center active:opacity-70"
+            className="w-10 h-10 rounded-xl items-center justify-center active:opacity-70"
           >
-            <Ionicons name="arrow-back" size={20} color={Colors.alpha} />
+            <Ionicons name="arrow-back" size={20} color={isDark ? Colors.light : Colors.beta} />
           </Pressable>
           <View className="flex-1 min-w-0">
             <Text className="text-xs font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
@@ -221,10 +258,10 @@ export default function ParticipantDetail() {
             <Text className="text-base font-semibold text-beta dark:text-light text-center mt-3">{error}</Text>
             <Pressable
               onPress={() => loadParticipant()}
-              className="mt-6 flex-row items-center gap-2 bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
+              className="mt-6 flex-row items-center gap-2 bg-beta dark:bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
             >
-              <Ionicons name="refresh" size={18} color={Colors.beta} />
-              <Text className="text-beta font-bold">Try again</Text>
+              <Ionicons name="refresh" size={18} color={onAccentText} />
+              <Text className="text-light dark:text-beta font-bold">Try again</Text>
             </Pressable>
           </View>
         ) : (
@@ -236,14 +273,14 @@ export default function ParticipantDetail() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => loadParticipant(true)}
-                tintColor={Colors.alpha}
-                colors={[Colors.alpha]}
+                tintColor={accentFill}
+                colors={[accentFill]}
               />
             }
           >
             <SectionCard className="p-4 items-center">
-              <View className="w-20 h-20 rounded-full bg-alpha/15 items-center justify-center mb-3">
-                <Text className="text-3xl font-bold text-alpha">{initial}</Text>
+              <View className="w-20 h-20 rounded-full bg-beta/15 dark:bg-alpha/15 items-center justify-center mb-3">
+                <Text className="text-3xl font-bold text-beta dark:text-alpha">{initial}</Text>
               </View>
               <Text className="text-xl font-bold text-beta dark:text-light text-center">{participant?.name}</Text>
               <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-1">{participant?.email}</Text>
@@ -262,6 +299,31 @@ export default function ParticipantDetail() {
                 )}
               </View>
 
+              {!checkedIn && canShowManualCheckIn ? (
+                <Pressable
+                  onPress={handleManualCheckIn}
+                  disabled={checkingIn}
+                  className="mt-4 flex-row items-center justify-center gap-2 w-full bg-beta dark:bg-alpha px-5 py-3.5 rounded-2xl active:opacity-90"
+                >
+                  {checkingIn ? (
+                    <ActivityIndicator size="small" color={onAccentText} />
+                  ) : (
+                    <Ionicons name="person-add-outline" size={18} color={onAccentText} />
+                  )}
+                  <Text className="text-light dark:text-beta font-bold">
+                    {checkingIn ? 'Checking in…' : 'Manual check-in'}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {!checkedIn && !canShowManualCheckIn ? (
+                <Text className="text-xs text-beta/45 dark:text-light/45 text-center mt-4 leading-5">
+                  {eventHasPassed
+                    ? 'Check-in after the event is only available to admins.'
+                    : 'Manual check-in is only available on the event day, before the event start time.'}
+                </Text>
+              ) : null}
+
               {eventTitle ? (
                 <Text className="text-xs text-beta/45 dark:text-light/45 text-center mt-3">
                   Registered for {eventTitle}
@@ -271,13 +333,14 @@ export default function ParticipantDetail() {
 
             <SectionCard className="px-4">
               <Text className="text-sm font-bold text-beta dark:text-light pt-4 pb-1">Details</Text>
-              <DetailRow icon="mail-outline" label="Email" value={participant?.email || '—'} />
+              <DetailRow icon="mail-outline" label="Email" value={participant?.email || '—'} accentIcon={accentIcon} />
               {detailRows.map((row) => (
                 <DetailRow
                   key={`${row.label}-${row.value}`}
                   icon="information-circle-outline"
                   label={row.label}
                   value={row.value}
+                  accentIcon={accentIcon}
                 />
               ))}
               {!detailRows.length ? (
@@ -290,13 +353,13 @@ export default function ParticipantDetail() {
             <SectionCard className="p-4">
               <View className="flex-row items-center justify-between mb-1">
                 <View className="flex-row items-center gap-2">
-                  <View className="w-8 h-8 rounded-lg bg-alpha/15 items-center justify-center">
-                    <Ionicons name="calendar-outline" size={16} color={Colors.alpha} />
+                  <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-alpha/15 items-center justify-center">
+                    <Ionicons name="calendar-outline" size={16} color={accentIcon} />
                   </View>
                   <Text className="text-base font-bold text-beta dark:text-light">Other events</Text>
                 </View>
                 {!loadingOther ? (
-                  <View className="bg-alpha/15 px-2.5 py-1 rounded-full">
+                  <View className="bg-beta/15 dark:bg-alpha/15 px-2.5 py-1 rounded-full">
                     <Text className="text-xs font-bold text-beta dark:text-light">{otherEventsOnly.length}</Text>
                   </View>
                 ) : null}
@@ -314,7 +377,7 @@ export default function ParticipantDetail() {
                 </View>
               ) : otherEventsOnly.length === 0 ? (
                 <View className="items-center py-6">
-                  <Ionicons name="calendar-outline" size={32} color={Colors.alpha} />
+                  <Ionicons name="calendar-outline" size={32} color={accentIcon} />
                   <Text className="text-sm font-semibold text-beta dark:text-light mt-3">No other events</Text>
                   <Text className="text-xs text-beta/50 dark:text-light/50 text-center mt-1 px-4">
                     This visitor is only registered for the current event.
@@ -328,6 +391,7 @@ export default function ParticipantDetail() {
                       item={item}
                       isDark={isDark}
                       onPress={() => openOtherEvent(item.event?.id)}
+                      accentIcon={accentIcon}
                     />
                   ))}
                 </View>

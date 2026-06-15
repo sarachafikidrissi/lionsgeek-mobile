@@ -2,17 +2,27 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppContext } from '@/context';
+import { userCanAccessScan } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
+import { getAccentFillColor, getAccentIconColor } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import Skeleton from '@/components/ui/Skeleton';
-import EventCard from '@/components/scan/partials/EventCard';
+import EventCard from '@/components/events/partials/EventCard';
 import {
   filterEventsByName,
+  filterEventsForViewer,
   normalizeEvents,
   resolveEventsError,
   sortEventsByDate,
-} from '@/components/scan/helpers';
+} from '@/components/events/helpers';
 
 export default function EventsTab() {
+  const { user } = useAppContext();
+  const canAccessScan = userCanAccessScan(user);
+  const isDark = useColorScheme() === 'dark';
+  const accentIcon = getAccentIconColor(isDark);
+  const accentFill = getAccentFillColor(isDark);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,13 +52,18 @@ export default function EventsTab() {
     fetchEvents();
   }, [fetchEvents]);
 
+  const viewerEvents = useMemo(
+    () => filterEventsForViewer(events, user),
+    [events, user]
+  );
+
   const displayedEvents = useMemo(
-    () => sortEventsByDate(filterEventsByName(events, searchQuery), sortOrder),
-    [events, searchQuery, sortOrder]
+    () => sortEventsByDate(filterEventsByName(viewerEvents, searchQuery), sortOrder),
+    [viewerEvents, searchQuery, sortOrder]
   );
 
   const openEvent = (eventId) => {
-    router.push(`/(tabs)/scan/${eventId}`);
+    router.push(`/(tabs)/events/${eventId}`);
   };
 
   const toggleSortOrder = () => {
@@ -81,7 +96,7 @@ export default function EventsTab() {
         <Ionicons
           name={sortOrder === 'desc' ? 'arrow-down' : 'arrow-up'}
           size={20}
-          color="#ffc801"
+          color={accentFill}
         />
       </Pressable>
     </View>
@@ -109,21 +124,21 @@ export default function EventsTab() {
           <Text className="text-sm text-error text-center mt-3">{error}</Text>
           <Pressable
             onPress={() => fetchEvents()}
-            className="mt-4 bg-alpha px-5 py-3 rounded-xl active:opacity-90"
+            className="mt-4 bg-beta dark:bg-alpha px-5 py-3 rounded-xl active:opacity-90"
           >
-            <Text className="text-beta font-semibold">Retry</Text>
+            <Text className="text-light dark:text-beta font-semibold">Retry</Text>
           </Pressable>
         </View>
       </View>
     );
   }
 
-  if (events.length === 0) {
+  if (viewerEvents.length === 0) {
     return (
       <View className="flex-1">
         {searchBar}
         <View className="flex-1 items-center justify-center px-8 py-16">
-          <Ionicons name="calendar-outline" size={48} color="#ffc801" />
+          <Ionicons name="calendar-outline" size={48} color={accentIcon} />
           <Text className="text-base font-semibold text-beta dark:text-light mt-3">No events</Text>
           <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-1">
             Events from lionsgeek.ma will appear here.
@@ -138,7 +153,7 @@ export default function EventsTab() {
       className="flex-1"
       contentContainerStyle={{ paddingBottom: 32 }}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchEvents(true)} tintColor="#ffc801" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchEvents(true)} tintColor={accentFill} />}
     >
       {searchBar}
 
@@ -149,7 +164,7 @@ export default function EventsTab() {
 
       {displayedEvents.length === 0 ? (
         <View className="items-center px-8 py-12">
-          <Ionicons name="search-outline" size={40} color="#ffc801" />
+          <Ionicons name="search-outline" size={40} color={accentIcon} />
           <Text className="text-base font-semibold text-beta dark:text-light mt-3">No matches</Text>
           <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-1">
             No events match &quot;{searchQuery}&quot;.
@@ -158,7 +173,12 @@ export default function EventsTab() {
       ) : (
         <View className="px-4">
           {displayedEvents.map((event) => (
-            <EventCard key={event.id} event={event} onPress={() => openEvent(event.id)} />
+            <EventCard
+              key={event.id}
+              event={event}
+              onPress={() => openEvent(event.id)}
+              treatPastByDateTime={!canAccessScan}
+            />
           ))}
         </View>
       )}
