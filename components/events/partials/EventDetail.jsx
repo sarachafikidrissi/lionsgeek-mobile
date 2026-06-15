@@ -14,7 +14,7 @@ import { hasUserBookedEvent } from '@/components/events/bookingHelpers';
 import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
-  canBookEvent,
+  userCanBookEvent,
   userCanScanEvent,
   formatEventCapacity,
   formatEventDate,
@@ -198,10 +198,7 @@ export default function EventDetail() {
   const isStaffBooking = canAccessScan;
   const canShowBooking = isStaffBooking || !isPrivate;
   const canOpenBooking =
-    canShowBooking &&
-    canBookEvent(event) &&
-    (isAdmin || !eventHasPassed) &&
-    (isAdmin || !alreadyBooked);
+    canShowBooking && userCanBookEvent(event, user) && (isAdmin || !alreadyBooked);
 
   const openScanner = () => {
     router.push({
@@ -357,17 +354,19 @@ export default function EventDetail() {
                   {isStaffBooking ? 'Registration' : 'Free Event'}
                 </Text>
                 <Text className="text-sm text-beta/60 dark:text-light/60 mt-1">
-                  {isStaffBooking
-                    ? eventHasPassed
-                      ? 'This event has ended'
-                      : remainingCapacity > 0
-                        ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
-                        : 'This event is fully booked'
-                    : eventHasPassed
-                      ? 'This event has ended'
-                      : remainingCapacity > 0
-                        ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
-                        : 'This event is fully booked'}
+                  {isAdmin
+                    ? 'Admins can register participants anytime, including after the event.'
+                    : isStaffBooking
+                      ? eventHasPassed
+                        ? 'This event has ended'
+                        : remainingCapacity > 0
+                          ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
+                          : 'This event is fully booked'
+                      : eventHasPassed
+                        ? 'This event has ended'
+                        : remainingCapacity > 0
+                          ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
+                          : 'This event is fully booked'}
                 </Text>
 
                 {!isAdmin && alreadyBooked ? (
@@ -384,7 +383,7 @@ export default function EventDetail() {
                   >
                     <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Event Ended</Text>
                   </Pressable>
-                ) : remainingCapacity <= 0 ? (
+                ) : !isAdmin && remainingCapacity <= 0 ? (
                   <Pressable
                     disabled
                     className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
@@ -404,7 +403,7 @@ export default function EventDetail() {
                         canOpenBooking ? 'text-light dark:text-beta' : 'text-beta/50 dark:text-light/50'
                       }`}
                     >
-                      Book now
+                      {isAdmin && isStaffBooking ? 'Register participant' : 'Book now'}
                     </Text>
                   </Pressable>
                 )}

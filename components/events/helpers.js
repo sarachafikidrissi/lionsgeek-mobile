@@ -165,6 +165,13 @@ export function canBookEvent(event) {
   return Number.isFinite(remaining) && remaining > 0;
 }
 
+// Admins may register participants anytime, even after the event or when full.
+export function userCanBookEvent(event, user) {
+  if (!event) return false;
+  if (userHasAdminRole(user)) return true;
+  return canBookEvent(event);
+}
+
 export function getEventRemainingCapacity(event) {
   const remaining = Number(event?.capacity);
   return Number.isFinite(remaining) ? remaining : 0;

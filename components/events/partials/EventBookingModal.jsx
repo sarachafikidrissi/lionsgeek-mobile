@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EventsInfoAPI from '@/api/eventsInfoSection';
+import { userHasAdminRole } from '@/components/helpers/helpers';
 import {
   buildInitialAnswers,
   extractBookingErrorMessage,
@@ -45,8 +46,23 @@ function FieldError({ message }) {
   return <Text className="text-xs text-error mt-1">{message}</Text>;
 }
 
+const DUPLICATE_EMAIL_MESSAGE = 'This email is already registered for this event.';
+
+function findEmailFieldKey(fields) {
+  const field = fields.find((item) => normalizeBookingKey(item?.key) === 'email');
+  return field?.key ?? 'email';
+}
+
+function isDuplicateEmailError(error) {
+  const status = error?.response?.status;
+  if (status !== 422) return false;
+  const message = extractBookingErrorMessage(error).toLowerCase();
+  return /already (booked|registered|exist)/i.test(message);
+}
+
 export default function EventBookingModal({ visible, event, user, onClose, onSuccess, staffMode = false }) {
   const isDark = useColorScheme() === 'dark';
+  const isAdmin = userHasAdminRole(user);
   const accentFill = getAccentFillColor(isDark);
   const onAccentText = getOnAccentTextColor(isDark);
   const language = 'en';
@@ -60,12 +76,12 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
 
   useEffect(() => {
     if (!visible) return;
-    setAnswers(buildInitialAnswers(fields, user));
+    setAnswers(buildInitialAnswers(fields, staffMode ? null : user));
     setErrors({});
     setFormError(null);
     setSuccessMessage(null);
     setSubmitting(false);
-  }, [visible, event?.id, fields, user]);
+  }, [visible, event?.id, fields, user, staffMode]);
 
   const handleClose = () => {
     if (submitting) return;
@@ -126,6 +142,7 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
       const response = await EventsInfoAPI.storeBooking({
         event_id: event?.id,
         answers,
+        ...(isAdmin ? { admin_override: true } : {}),
       });
 
       const message =
@@ -136,18 +153,27 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
       setSuccessMessage(typeof message === 'string' ? message : 'Booking successful!');
       onSuccess?.(response?.data);
     } catch (error) {
+      const duplicateEmail = isDuplicateEmailError(error);
       const serverErrors = error?.response?.data?.errors;
+      const mapped = {};
+
       if (serverErrors && typeof serverErrors === 'object') {
-        const mapped = {};
         Object.entries(serverErrors).forEach(([key, value]) => {
           const fieldKey = key.replace(/^answers\./, '');
           mapped[fieldKey] = Array.isArray(value) ? value[0] : String(value);
         });
+      }
+
+      if (duplicateEmail) {
+        mapped[findEmailFieldKey(fields)] = DUPLICATE_EMAIL_MESSAGE;
+        setErrors(mapped);
+        setFormError(null);
+      } else {
         if (Object.keys(mapped).length > 0) {
           setErrors(mapped);
         }
+        setFormError(extractBookingErrorMessage(error));
       }
-      setFormError(extractBookingErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
