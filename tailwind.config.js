@@ -13,6 +13,8 @@ module.exports = {
         dark_gray: "#1f2326",
         light: "#fafafa",
         dark: "#171717",
+        card: "#1c1c1c",
+        card_border: "#2e2e2e",
         lb: {
           bg: "#0B0907",
           pill: "#161412",
@@ -47,9 +49,6 @@ module.exports = {
         "lb-bronze": "0 0 12px rgba(212, 130, 65, 0.45)",
         "lb-pill": "0 2px 8px rgba(0, 0, 0, 0.35)",
         "lb-online": "0 0 6px rgba(74, 222, 128, 0.65)",
-        card: "#1c1c1c",
-        card_border: "#2e2e2e",
-
       },
     },
   },
