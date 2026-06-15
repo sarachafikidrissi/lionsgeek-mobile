@@ -59,7 +59,7 @@ function StatusBadge({ status }) {
 function SectionCard({ children, className = '' }) {
   return (
     <View
-      className={`bg-light dark:bg-dark_gray border border-beta/8 dark:border-light/8 rounded-2xl overflow-hidden ${className}`}
+      className={`bg-white dark:bg-card border border-beta/8 dark:border-card_border rounded-2xl overflow-hidden ${className}`}
     >
       {children}
     </View>
@@ -332,9 +332,9 @@ export default function EventDetail() {
               ) : null}
             </View>
 
-            <SectionCard className="p-4 bg-dark">
-              <View className="flex-row items-center gap-2 mb-3 ">
-                <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-dark_gray items-center justify-center">
+            <SectionCard className="p-4">
+              <View className="flex-row items-center gap-2 mb-3">
+                <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-beta/40 items-center justify-center">
                   <Ionicons name="information-circle-outline" size={16} color={accentIcon} />
                 </View>
                 <Text className="text-base font-bold text-beta dark:text-light">Details</Text>

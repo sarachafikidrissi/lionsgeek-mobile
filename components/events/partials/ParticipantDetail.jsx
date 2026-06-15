@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { userCanAccessScan } from '@/components/helpers/helpers';
+import { userCanAccessScan, userHasAdminRole } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
 import AccessDenied from '@/components/events/partials/AccessDenied';
@@ -16,6 +16,7 @@ import {
   formatEventDate,
   getEventDisplayName,
   getEventStatusLabel,
+  hasEventPassed,
   getParticipantDetailRows,
   isSameEventId,
 } from '@/components/events/helpers';
@@ -23,7 +24,7 @@ import {
 function SectionCard({ children, className = '' }) {
   return (
     <View
-      className={`bg-light dark:bg-dark_gray border border-beta/8 dark:border-light/8 rounded-2xl overflow-hidden ${className}`}
+      className={`bg-white dark:bg-card border border-beta/8 dark:border-card_border rounded-2xl overflow-hidden ${className}`}
     >
       {children}
     </View>
@@ -117,8 +118,15 @@ export default function ParticipantDetail() {
   const [loadingOther, setLoadingOther] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [checkingIn, setCheckingIn] = useState(false);
+
+  const isAdmin = userHasAdminRole(user);
 
   const detailRows = useMemo(() => getParticipantDetailRows(participant), [participant]);
+
+  const eventHasPassed = currentEvent ? hasEventPassed(currentEvent) : false;
+  const checkedIn = Boolean(participant?.is_visited);
+  const canShowManualCheckIn = isAdmin || !eventHasPassed;
 
   const otherEventsOnly = useMemo(
     () => otherRegistrations.filter((item) => !isSameEventId(item.event?.id, eventId)),
@@ -180,6 +188,33 @@ export default function ParticipantDetail() {
   useEffect(() => {
     loadParticipant();
   }, [loadParticipant]);
+
+  const handleManualCheckIn = useCallback(async () => {
+    if (!participantId || !eventId || checkingIn || checkedIn) return;
+
+    Alert.alert(
+      'Manual check-in',
+      'Mark this participant as checked in without scanning their QR code?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Check in',
+          onPress: async () => {
+            setCheckingIn(true);
+            try {
+              await EventsInfoAPI.manualEventChecking(participantId, eventId);
+              setParticipant((prev) => (prev ? { ...prev, is_visited: true } : prev));
+            } catch (err) {
+              console.error('[SCAN] Manual check-in error:', err);
+              Alert.alert('Check-in failed', 'Could not mark this participant as checked in.');
+            } finally {
+              setCheckingIn(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [participantId, eventId, checkingIn, checkedIn]);
 
   if (!userCanAccessScan(user)) {
     return <AccessDenied />;
@@ -264,6 +299,29 @@ export default function ParticipantDetail() {
                   </View>
                 )}
               </View>
+
+              {!checkedIn && canShowManualCheckIn ? (
+                <Pressable
+                  onPress={handleManualCheckIn}
+                  disabled={checkingIn}
+                  className="mt-4 flex-row items-center justify-center gap-2 w-full bg-beta dark:bg-alpha px-5 py-3.5 rounded-2xl active:opacity-90"
+                >
+                  {checkingIn ? (
+                    <ActivityIndicator size="small" color={onAccentText} />
+                  ) : (
+                    <Ionicons name="person-add-outline" size={18} color={onAccentText} />
+                  )}
+                  <Text className="text-light dark:text-beta font-bold">
+                    {checkingIn ? 'Checking in…' : 'Manual check-in'}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {!checkedIn && !canShowManualCheckIn && !isAdmin ? (
+                <Text className="text-xs text-beta/45 dark:text-light/45 text-center mt-4 leading-5">
+                  Manual check-in is no longer available after the event start time.
+                </Text>
+              ) : null}
 
               {eventTitle ? (
                 <Text className="text-xs text-beta/45 dark:text-light/45 text-center mt-3">

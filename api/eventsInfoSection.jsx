@@ -100,6 +100,8 @@ export const EventsInfoAPI = {
   getEvent: (eventId) => get(`events/${eventId}`),
   storeBooking: (payload) => postBooking(payload),
   validateEventInvitation: (payload) => put('validate-event-invitation', payload),
+  manualEventChecking: (bookingId, eventId) =>
+    put('manual-event-checking', { id: Number(bookingId), event_id: Number(eventId) }),
 };
 
 export default EventsInfoAPI;
