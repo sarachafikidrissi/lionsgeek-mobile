@@ -6,7 +6,6 @@ import { useAppContext } from '@/context';
 import { userCanAccessScan } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
-import AccessDenied from '@/components/events/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
 import ParticipantsList from '@/components/events/partials/ParticipantsList';
 import EventCoverImage from '@/components/events/partials/EventCoverImage';
@@ -15,6 +14,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import {
   canScanEvent,
   formatEventCapacity,
+  formatEventDate,
   getEventCoverUrl,
   getEventDisplayName,
   getEventStatusLabel,
@@ -101,6 +101,7 @@ function DetailSkeleton({ isDark }) {
 
 export default function EventDetail() {
   const { user } = useAppContext();
+  const canAccessScan = userCanAccessScan(user);
   const params = useLocalSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const colorScheme = useColorScheme();
@@ -199,10 +200,6 @@ export default function EventDetail() {
     });
   };
 
-  if (!userCanAccessScan(user)) {
-    return <AccessDenied />;
-  }
-
   return (
     <AppLayout showNavbar={false}>
       <KeyboardAvoidingView
@@ -218,7 +215,7 @@ export default function EventDetail() {
           </Pressable>
           <View className="flex-1 min-w-0">
             <Text className="text-xs font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
-              Scan
+              Events
             </Text>
             {loading ? (
               <Skeleton width={160} height={16} borderRadius={6} isDark={isDark} />
@@ -228,7 +225,7 @@ export default function EventDetail() {
               </Text>
             )}
           </View>
-          {!loading && !error && (
+          {canAccessScan && !loading && !error && (
             <Pressable
               onPress={scannable ? openScanner : undefined}
               disabled={!scannable}
@@ -297,7 +294,26 @@ export default function EventDetail() {
               ) : null}
             </View>
 
-            {!scannable ? (
+            <SectionCard className="p-4">
+              <View className="flex-row items-center gap-2 mb-3">
+                <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-alpha/15 items-center justify-center">
+                  <Ionicons name="information-circle-outline" size={16} color={accentIcon} />
+                </View>
+                <Text className="text-base font-bold text-beta dark:text-light">Details</Text>
+              </View>
+              <View className="flex-row items-center gap-2">
+                <Ionicons name="time-outline" size={16} color={accentIcon} />
+                <Text className="text-sm text-beta/80 dark:text-light/80">{formatEventDate(event)}</Text>
+              </View>
+              {event?.location ? (
+                <View className="flex-row items-center gap-2 mt-2">
+                  <Ionicons name="location-outline" size={16} color={accentIcon} />
+                  <Text className="text-sm text-beta/80 dark:text-light/80 flex-1">{event.location}</Text>
+                </View>
+              ) : null}
+            </SectionCard>
+
+            {canAccessScan && !scannable ? (
               <SectionCard className="p-4">
                 <View className="flex-row items-start gap-3">
                   <View className="w-10 h-10 rounded-xl bg-beta/8 dark:bg-light/8 items-center justify-center">
@@ -313,6 +329,7 @@ export default function EventDetail() {
               </SectionCard>
             ) : null}
 
+            {canAccessScan ? (
             <SectionCard className="p-4">
               <View className="flex-row items-center justify-between mb-1">
                 <View className="flex-row items-center gap-2">
@@ -395,6 +412,7 @@ export default function EventDetail() {
                 }
               />
             </SectionCard>
+            ) : null}
           </ScrollView>
         )}
       </KeyboardAvoidingView>

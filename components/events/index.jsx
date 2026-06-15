@@ -6,31 +6,36 @@ import AppLayout from '@/components/layout/AppLayout';
 import ScanTabBar from '@/components/events/partials/ScanTabBar';
 import EventsTab from '@/components/events/partials/EventsTab';
 import InfoSessionsTab from '@/components/infoSession/partials/InfoSessionsTab';
-import AccessDenied from '@/components/events/partials/AccessDenied';
 
 export default function ScanScreen() {
   const { user } = useAppContext();
   const [activeTab, setActiveTab] = useState('events');
-
-  if (!userCanAccessScan(user)) {
-    return <AccessDenied />;
-  }
+  const canAccessScan = userCanAccessScan(user);
 
   return (
     <AppLayout showNavbar={true}>
       <View className="flex-1 bg-light dark:bg-dark">
         <View className="px-4 pt-4 pb-2 border-b border-beta/10 dark:border-light/10">
-          <Text className="text-2xl font-bold text-beta dark:text-light">Scan</Text>
+          <Text className="text-2xl font-bold text-beta dark:text-light">Events</Text>
           <Text className="text-sm text-beta/60 dark:text-light/60 mt-1">
-            Check in event visitors and info session participants
+            {canAccessScan
+              ? 'Browse events and check in visitors or info session participants'
+              : 'Browse upcoming and past events from lionsgeek.ma'}
           </Text>
         </View>
 
-        <ScanTabBar activeTab={activeTab} onTabChange={setActiveTab} />
-
-        <View className="flex-1">
-          {activeTab === 'events' ? <EventsTab /> : <InfoSessionsTab />}
-        </View>
+        {canAccessScan ? (
+          <>
+            <ScanTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+            <View className="flex-1">
+              {activeTab === 'events' ? <EventsTab /> : <InfoSessionsTab />}
+            </View>
+          </>
+        ) : (
+          <View className="flex-1">
+            <EventsTab />
+          </View>
+        )}
       </View>
     </AppLayout>
   );
