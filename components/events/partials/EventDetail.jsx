@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, TextInput, RefreshControl, KeyboardA
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { userCanAccessScan } from '@/components/helpers/helpers';
+import { userCanAccessScan, userHasAdminRole } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
 import Skeleton from '@/components/ui/Skeleton';
@@ -15,7 +15,7 @@ import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
   canBookEvent,
-  canScanEvent,
+  userCanScanEvent,
   formatEventCapacity,
   formatEventDate,
   getEventCoverUrl,
@@ -108,6 +108,7 @@ function DetailSkeleton({ isDark }) {
 export default function EventDetail() {
   const { user } = useAppContext();
   const canAccessScan = userCanAccessScan(user);
+  const isAdmin = userHasAdminRole(user);
   const params = useLocalSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const colorScheme = useColorScheme();
@@ -180,7 +181,7 @@ export default function EventDetail() {
     }, [fetchEvent])
   );
 
-  const scannable = event ? canScanEvent(event) : false;
+  const scannable = event ? userCanScanEvent(event, user) : false;
   const title = getEventDisplayName(event?.name);
   const coverUrl = getEventCoverUrl(event?.cover);
   const statusLabel = event ? getEventStatusLabel(event, { treatPastByDateTime: !canAccessScan }) : null;
@@ -193,6 +194,7 @@ export default function EventDetail() {
   const alreadyBooked = hasUserBookedEvent(participants, user?.email);
   const eventHasPassed = event ? hasEventPassed(event) : false;
   const isPrivate = event ? isPrivateEvent(event) : false;
+  const scanDisabledLabel = eventHasPassed ? 'Event ended' : 'Not today';
   const canShowBooking = !canAccessScan && !isPrivate;
   const canOpenBooking = canShowBooking && canBookEvent(event) && !alreadyBooked && !eventHasPassed;
 
@@ -256,7 +258,7 @@ export default function EventDetail() {
                   scannable ? 'text-light dark:text-beta' : 'text-beta/35 dark:text-light/35'
                 }`}
               >
-                {scannable ? 'Scan' : 'Not today'}
+                {scannable ? 'Scan' : scanDisabledLabel}
               </Text>
             </Pressable>
           )}
@@ -281,7 +283,7 @@ export default function EventDetail() {
               <Text className="text-light dark:text-beta font-bold">Try again</Text>
             </Pressable>
           </View>
-        ) : isPrivate ? (
+        ) : isPrivate && !canAccessScan ? (
           <View className="flex-1 items-center justify-center px-8">
             <View className="w-16 h-16 rounded-2xl bg-beta/10 dark:bg-light/10 items-center justify-center mb-4">
               <Ionicons name="lock-closed-outline" size={32} color={accentIcon} />
@@ -396,16 +398,20 @@ export default function EventDetail() {
               </SectionCard>
             ) : null}
 
-            {canAccessScan && !scannable ? (
+            {canAccessScan && !scannable && !isAdmin ? (
               <SectionCard className="p-4">
                 <View className="flex-row items-start gap-3">
                   <View className="w-10 h-10 rounded-xl bg-beta/8 dark:bg-light/8 items-center justify-center">
                     <Ionicons name="lock-closed-outline" size={18} color={isDark ? Colors.light : Colors.beta} />
                   </View>
                   <View className="flex-1 min-w-0">
-                    <Text className="text-sm font-bold text-beta dark:text-light">Scan not available yet</Text>
+                    <Text className="text-sm font-bold text-beta dark:text-light">
+                      {eventHasPassed ? 'Scan closed' : 'Scan not available yet'}
+                    </Text>
                     <Text className="text-xs text-beta/55 dark:text-light/55 mt-1 leading-5">
-                      QR scanning opens on the event day and stays available until midnight.
+                      {eventHasPassed
+                        ? 'QR scanning is closed after the event. Contact an admin for late check-in.'
+                        : 'QR scanning opens on the event day and closes after the event date and time.'}
                     </Text>
                   </View>
                 </View>

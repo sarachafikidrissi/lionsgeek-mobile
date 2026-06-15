@@ -3,12 +3,13 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppContext } from '@/context';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import Skeleton from '@/components/ui/Skeleton';
 import ScanResultOverlay from '@/components/events/partials/ScanResultModal';
 import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getEventDisplayName, mapValidationMessage } from '@/components/events/helpers';
+import { getEventDisplayName, hasEventPassed, mapValidationMessage, userCanScanEvent } from '@/components/events/helpers';
 
 const DUPLICATE_SCAN_MS = 2500;
 const CORNER_SIZE = 36;
@@ -82,6 +83,7 @@ function ScanFrameCorner({ position, borderColor }) {
 }
 
 export default function EventScanner() {
+  const { user } = useAppContext();
   const isDark = useColorScheme() === 'dark';
   const accentIcon = getAccentIconColor(isDark);
   const accentFill = getAccentFillColor(isDark);
@@ -91,22 +93,35 @@ export default function EventScanner() {
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
+  const [eventData, setEventData] = useState(null);
+  const [eventLoading, setEventLoading] = useState(true);
   const [lastResult, setLastResult] = useState(null);
   const scanLockRef = useRef(false);
   const lastScanRef = useRef({ data: null, at: 0 });
 
   useEffect(() => {
     const loadEvent = async () => {
-      if (!id) return;
+      if (!id) {
+        setEventLoading(false);
+        return;
+      }
+      setEventLoading(true);
       try {
         const response = await EventsInfoAPI.getEvent(id);
-        setEventTitle(getEventDisplayName(response?.data?.event?.name));
+        const event = response?.data?.event ?? null;
+        setEventData(event);
+        setEventTitle(getEventDisplayName(event?.name));
       } catch {
+        setEventData(null);
         setEventTitle('Event');
+      } finally {
+        setEventLoading(false);
       }
     };
     loadEvent();
   }, [id]);
+
+  const scanAllowed = eventData ? userCanScanEvent(eventData, user) : false;
 
   const resetScanner = useCallback(() => {
     scanLockRef.current = false;
@@ -181,6 +196,32 @@ export default function EventScanner() {
   };
 
   const scanPaused = processing || !!lastResult;
+
+  if (eventLoading) {
+    return (
+      <View style={[styles.container, styles.permissionScreen]}>
+        <Skeleton width={200} height={18} borderRadius={12} isDark={isDark} />
+      </View>
+    );
+  }
+
+  if (!scanAllowed) {
+    const eventEnded = eventData ? hasEventPassed(eventData) : false;
+    return (
+      <View style={[styles.container, styles.permissionScreen]}>
+        <Ionicons name="lock-closed-outline" size={64} color={accentIcon} />
+        <Text style={styles.permissionTitle}>{eventEnded ? 'Scan closed' : 'Scan not available'}</Text>
+        <Text style={styles.permissionText}>
+          {eventEnded
+            ? 'QR scanning is closed after the event. Contact an admin for late check-in.'
+            : 'QR scanning is only available on the event day, before the event date and time.'}
+        </Text>
+        <Pressable onPress={() => router.back()} style={[styles.permissionButton, { backgroundColor: accentFill }]}>
+          <Text style={[styles.permissionButtonText, { color: onAccentText }]}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (!permission) {
     return (

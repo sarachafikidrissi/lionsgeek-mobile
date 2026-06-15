@@ -11,7 +11,7 @@ import Skeleton from '@/components/ui/Skeleton';
 import EventCard from '@/components/events/partials/EventCard';
 import {
   filterEventsByName,
-  filterPublicEvents,
+  filterEventsForViewer,
   normalizeEvents,
   resolveEventsError,
   sortEventsByDate,
@@ -37,7 +37,7 @@ export default function EventsTab() {
 
     try {
       const response = await EventsInfoAPI.getEvents();
-      setEvents(filterPublicEvents(normalizeEvents(response?.data)));
+      setEvents(normalizeEvents(response?.data));
     } catch (err) {
       console.error('[SCAN] Events fetch error:', err);
       setError(resolveEventsError(err));
@@ -52,9 +52,14 @@ export default function EventsTab() {
     fetchEvents();
   }, [fetchEvents]);
 
+  const viewerEvents = useMemo(
+    () => filterEventsForViewer(events, user),
+    [events, user]
+  );
+
   const displayedEvents = useMemo(
-    () => sortEventsByDate(filterEventsByName(events, searchQuery), sortOrder),
-    [events, searchQuery, sortOrder]
+    () => sortEventsByDate(filterEventsByName(viewerEvents, searchQuery), sortOrder),
+    [viewerEvents, searchQuery, sortOrder]
   );
 
   const openEvent = (eventId) => {
@@ -128,7 +133,7 @@ export default function EventsTab() {
     );
   }
 
-  if (events.length === 0) {
+  if (viewerEvents.length === 0) {
     return (
       <View className="flex-1">
         {searchBar}

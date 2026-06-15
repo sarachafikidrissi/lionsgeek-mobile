@@ -1,5 +1,6 @@
 import { format, isValid, parseISO, startOfDay } from 'date-fns';
 import EventsInfoAPI from '@/api/eventsInfoSection';
+import { userHasAdminRole, userCanAccessScan } from '@/components/helpers/helpers';
 
 // Resolves multilingual event name JSON to a display string.
 export function getEventDisplayName(name) {
@@ -60,13 +61,22 @@ export function isEventActiveForList(event) {
   return eventDay >= today;
 }
 
-// Scan allowed until midnight on the event's calendar day.
+// Scan staff (access_scan): only on the event day, and only until the event datetime.
+// After the event has started/passed, only admins may scan (see userCanScanEvent).
 export function canScanEvent(event) {
   const eventDate = getEventDate(event);
   if (!eventDate) return false;
+  if (hasEventPassed(event)) return false;
+
   const today = startOfDay(new Date());
   const eventDay = startOfDay(eventDate);
   return eventDay.getTime() === today.getTime();
+}
+
+// Admins may scan anytime; scan staff only while canScanEvent(event) is true.
+export function userCanScanEvent(event, user) {
+  if (userHasAdminRole(user)) return Boolean(event);
+  return canScanEvent(event);
 }
 
 export function formatEventDate(event) {
@@ -96,10 +106,17 @@ export function isPrivateEvent(event) {
   return Boolean(event?.is_private);
 }
 
-// Public events only — private events are hidden from the mobile list.
+// Public events only — private events are hidden from regular app users.
 export function filterPublicEvents(events) {
   if (!Array.isArray(events)) return [];
   return events.filter((event) => !isPrivateEvent(event));
+}
+
+// Scan staff and admins see all events; everyone else sees public events only.
+export function filterEventsForViewer(events, user) {
+  const list = normalizeEvents(events);
+  if (userCanAccessScan(user)) return list;
+  return filterPublicEvents(list);
 }
 
 export function sortEventsByDate(events, order = 'desc') {
@@ -280,7 +297,7 @@ export async function fetchParticipantOtherRegistrations(email, excludeEventId) 
   if (!normalizedEmail) return [];
 
   const listResponse = await EventsInfoAPI.getEvents();
-  const events = filterPublicEvents(normalizeEvents(listResponse?.data ?? [])).filter(
+  const events = normalizeEvents(listResponse?.data ?? []).filter(
     (event) => !isSameEventId(event.id, excludeEventId)
   );
 
