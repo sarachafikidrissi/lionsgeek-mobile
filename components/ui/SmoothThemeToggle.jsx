@@ -15,9 +15,9 @@ const PAD = 2;
 const TRAVEL = TRACK_W - THUMB - PAD * 2;
 
 const SPRING = {
-  damping: 19,
-  stiffness: 210,
-  mass: 0.55,
+  damping: 22,
+  stiffness: 280,
+  mass: 0.45,
 };
 
 /**

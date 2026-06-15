@@ -9,7 +9,7 @@ import { View, ActivityIndicator, Platform } from 'react-native';
 import "../index.css";
 
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { AppProvider } from '@/context';
+import { AppProvider, useAppContext } from '@/context';
 import { CallProvider } from '@/context/CallContext';
 import { setupNotificationListeners, removeNotificationListeners } from '@/services/pushNotifications';
 import { setupCallKeep } from '@/services/callKeep';
@@ -37,8 +37,8 @@ function stackHeaderOptions(
 
 function RootLayoutNav() {
   const notificationListenersRef = useRef(null);
-  const colorScheme = useColorScheme();
-  const stackBg = colorScheme === 'dark' ? Colors.dark : Colors.light;
+  const { colorScheme } = useAppContext();
+  const stackBg = colorScheme === 'dark' ? '#0D0C0B' : Colors.light;
 
   useEffect(() => {
     // Avoid Expo Go push-token warnings / auto-registration errors.
@@ -193,6 +193,18 @@ function RootLayoutNav() {
   );
 }
 
+function AppThemedShell() {
+  const { colorScheme } = useAppContext();
+  const isDark = colorScheme === 'dark';
+
+  return (
+    <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+      <RootLayoutNav />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -221,10 +233,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppProvider>
         <CallProvider>
-          <ThemeProvider value={colorScheme == 'dark' ? DarkTheme : DefaultTheme}>
-            <RootLayoutNav />
-            <StatusBar style={colorScheme == 'dark' ? 'light' : 'dark'} />
-          </ThemeProvider>
+          <AppThemedShell />
         </CallProvider>
       </AppProvider>
     </GestureHandlerRootView>

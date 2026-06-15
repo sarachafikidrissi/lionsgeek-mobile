@@ -16,7 +16,9 @@ import API from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import Skeleton from '@/components/ui/Skeleton';
+import EditProfileModal from '@/components/profile/EditProfileModal';
 import SmoothThemeToggle from '@/components/ui/SmoothThemeToggle';
+import GamerProfileStats from '@/components/more/GamerProfileStats';
 import { resolveAvatarUrl, getUserRolesNormalized } from '@/components/helpers/helpers';
 import { Colors } from '@/constants/Colors';
 
@@ -48,6 +50,7 @@ function SettingRow({
   pill,
   danger = false,
   disabled = false,
+  nonInteractive = false,
 }) {
   const trailing =
     pill || right ? (
@@ -57,13 +60,9 @@ function SettingRow({
       </View>
     ) : null;
 
-  return (
-    <TouchableOpacity
-      onPress={disabled ? undefined : onPress}
-      activeOpacity={onPress && !disabled ? 0.65 : 1}
-      disabled={disabled}
-      className="flex-row items-center px-5 py-4"
-    >
+  const rowClass = 'flex-row items-center px-5 py-4';
+  const inner = (
+    <>
       <View className="mr-3.5 h-10 w-10 items-center justify-center rounded-xl bg-alpha/12 dark:bg-alpha/15">
         <Ionicons name={icon} size={20} color={danger ? '#ef4444' : ACCENT} />
       </View>
@@ -81,6 +80,21 @@ function SettingRow({
         ) : null}
       </View>
       {trailing}
+    </>
+  );
+
+  if (nonInteractive || !onPress) {
+    return <View className={rowClass}>{inner}</View>;
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={disabled ? undefined : onPress}
+      activeOpacity={disabled ? 1 : 0.65}
+      disabled={disabled}
+      className={rowClass}
+    >
+      {inner}
     </TouchableOpacity>
   );
 }
@@ -118,12 +132,14 @@ function NotificationBadge({ count }) {
 }
 
 export default function More() {
-  const { user, token, signOut, colorScheme, setTheme } = useAppContext();
+  const { user, token, signOut, saveAuth, colorScheme, setTheme } = useAppContext();
   const isDark = colorScheme === 'dark';
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [themeToggleDark, setThemeToggleDark] = useState(isDark);
 
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
@@ -165,9 +181,17 @@ export default function More() {
     refreshUnread();
   }, [refreshUnread]);
 
-  const handleThemeToggle = (value) => {
-    setTheme(value ? 'dark' : 'light');
-  };
+  useEffect(() => {
+    setThemeToggleDark(isDark);
+  }, [isDark]);
+
+  const handleThemeToggle = useCallback(
+    (value) => {
+      setThemeToggleDark(value);
+      setTheme(value ? 'dark' : 'light');
+    },
+    [setTheme],
+  );
 
   const handleBiometricComingSoon = () => {
     Alert.alert('Biometric login', 'Biometric unlock will be available in a future update.', [
@@ -268,10 +292,79 @@ export default function More() {
                 <Text className="mt-3 max-w-[260px] text-center text-[10px] leading-4 text-neutral-500 dark:text-white/40">
                   Tip: long-press the Profile tab anytime to open this More hub.
                 </Text>
+                {!loading ? <GamerProfileStats profile={displayProfile} isDark={isDark} /> : null}
               </>
             )}
           </TouchableOpacity>
         </View>
+
+        <SectionLabel title="Experience mode" className="mt-5" />
+        <SettingsCard>
+          <SettingRow
+            nonInteractive
+            icon={themeToggleDark ? 'moon' : 'sunny-outline'}
+            label={themeToggleDark ? 'Coding Mode' : 'Media Mode'}
+            sublabel={
+              themeToggleDark
+                ? 'Dark theme · optimized for focus & code'
+                : 'Light theme · optimized for media & feed'
+            }
+            right={
+              <SmoothThemeToggle
+                value={themeToggleDark}
+                onValueChange={handleThemeToggle}
+                accent={ACCENT}
+              />
+            }
+          />
+        </SettingsCard>
+
+        {/* Account — settings first after profile */}
+        <SectionLabel title="Account & security" />
+        <SettingsCard>
+          <SettingRow
+            icon="person-outline"
+            label="Personal information"
+            sublabel="Photo, name & profile details"
+            onPress={() => {
+              if (!token) {
+                router.push('/auth/login');
+                return;
+              }
+              setShowEditProfile(true);
+            }}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="key-outline"
+            label="Reset password"
+            sublabel="Current password required · then choose a new one"
+            onPress={() => router.push('/reset-password')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="mail-unread-outline"
+            label="Email & recovery"
+            sublabel="Forgot password · we will email you a link"
+            onPress={() => router.push('/auth/forgot-password')}
+            right={chevron}
+          />
+          <RowDivider />
+          <SettingRow
+            icon="notifications-outline"
+            label="Notification preferences"
+            sublabel="Inbox categories & system settings"
+            onPress={() => router.push('/notification-preferences')}
+            right={
+              <View className="flex-row items-center gap-2">
+                <NotificationBadge count={unreadNotifications} />
+                {chevron}
+              </View>
+            }
+          />
+        </SettingsCard>
 
         {/* Feed & library */}
         <SectionLabel title="Feed & library" className="mt-5" />
@@ -289,14 +382,6 @@ export default function More() {
             label="Recent activity"
             sublabel="Likes, comments, saves, bookings & follows — full trail (no chat)"
             onPress={() => router.push('/activity')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
-            icon="search-outline"
-            label="Discover"
-            sublabel="Search people & posts"
-            onPress={() => router.push('/(tabs)/search')}
             right={chevron}
           />
         </SettingsCard>
@@ -338,14 +423,6 @@ export default function More() {
             right={chevron}
             pill={<SoonPill />}
           />
-          <RowDivider />
-          <SettingRow
-            icon="trophy-outline"
-            label="Leaderboard"
-            sublabel="Coding hours & cohort rankings"
-            onPress={() => router.push('/(tabs)/leaderboard')}
-            right={chevron}
-          />
         </SettingsCard>
 
         {/* Projects & sessions */}
@@ -360,26 +437,10 @@ export default function More() {
           />
           <RowDivider />
           <SettingRow
-            icon="hammer-outline"
-            label="Training hub"
-            sublabel="Modules, schedules & resources"
-            onPress={() => router.push('/(tabs)/training')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
             icon="clipboard-outline"
             label="Attendance history"
             sublabel="M · L · E by day for your training"
             onPress={() => router.push('/attendance-history')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
-            icon="qr-code-outline"
-            label="Scan QR code"
-            sublabel="Quick check-in to a session"
-            onPress={() => router.push('/(tabs)/training/qr-scanner')}
             right={chevron}
           />
         </SettingsCard>
@@ -400,67 +461,6 @@ export default function More() {
             label="Coworking history"
             sublabel="Desks & cowork slots you’ve booked"
             onPress={() => router.push('/reservation-history-cowork')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
-            icon="add-circle-outline"
-            label="Book a space"
-            sublabel="Studios, calendar & new cowork reservation"
-            onPress={() => router.push('/(tabs)/reservations')}
-            right={chevron}
-          />
-        </SettingsCard>
-
-        {/* Connected */}
-        <SectionLabel title="Stay connected" />
-        <SettingsCard>
-          <SettingRow
-            icon="chatbubbles-outline"
-            label="Messages"
-            sublabel="Direct conversations"
-            onPress={() => router.push('/(tabs)/chat')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
-            icon="notifications-outline"
-            label="Notification preferences"
-            sublabel="Inbox categories, sounds & system settings"
-            onPress={() => router.push('/notification-preferences')}
-            right={
-              <View className="flex-row items-center gap-2">
-                <NotificationBadge count={unreadNotifications} />
-                {chevron}
-              </View>
-            }
-          />
-        </SettingsCard>
-
-        {/* Account */}
-        <SectionLabel title="Account & security" />
-        <SettingsCard>
-          <SettingRow
-            icon="person-outline"
-            label="Personal information"
-            sublabel="Photo, name & profile details"
-            onPress={() => router.push('/(tabs)/profile')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
-            icon="key-outline"
-            label="Reset password"
-            sublabel="Current password required · then choose a new one"
-            onPress={() => router.push('/reset-password')}
-            right={chevron}
-          />
-          <RowDivider />
-          <SettingRow
-            icon="mail-unread-outline"
-            label="Email & recovery"
-            sublabel="Forgot password · we will email you a link"
-            onPress={() => router.push('/auth/forgot-password')}
             right={chevron}
           />
         </SettingsCard>
@@ -501,15 +501,6 @@ export default function More() {
             onPress={comingSoon('Accessibility preferences')}
             right={chevron}
             pill={<SoonPill />}
-          />
-          <RowDivider />
-          <SettingRow
-            icon={isDark ? 'moon' : 'sunny-outline'}
-            label="Dark mode"
-            sublabel={isDark ? 'Premium dark theme enabled' : 'Light theme'}
-            right={
-              <SmoothThemeToggle value={isDark} onValueChange={handleThemeToggle} accent={ACCENT} />
-            }
           />
           <RowDivider />
           <SettingRow
@@ -761,6 +752,23 @@ export default function More() {
           </Text>
         </View>
       </ScrollView>
+
+      <EditProfileModal
+        visible={showEditProfile}
+        profile={displayProfile}
+        token={token}
+        isDark={isDark}
+        onClose={() => setShowEditProfile(false)}
+        onSaved={(updated) => {
+          if (!updated) return;
+          setProfile((prev) => ({ ...(prev || user || {}), ...updated }));
+          if (token && user) {
+            saveAuth(token, { ...user, ...updated }).catch((e) =>
+              console.error('[MORE] Failed to sync user after profile edit:', e),
+            );
+          }
+        }}
+      />
     </AppLayout>
   );
 }
