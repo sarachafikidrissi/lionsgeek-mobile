@@ -8,18 +8,23 @@ import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
 import Skeleton from '@/components/ui/Skeleton';
 import ParticipantsList from '@/components/events/partials/ParticipantsList';
+import EventBookingModal from '@/components/events/partials/EventBookingModal';
 import EventCoverImage from '@/components/events/partials/EventCoverImage';
+import { hasUserBookedEvent } from '@/components/events/bookingHelpers';
 import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
+  canBookEvent,
   canScanEvent,
   formatEventCapacity,
   formatEventDate,
   getEventCoverUrl,
   getEventDisplayName,
+  getEventRemainingCapacity,
   getEventStatusLabel,
   getEventTotalCapacity,
   getParticipantCounts,
+  hasEventPassed,
 } from '@/components/events/helpers';
 
 function StatusBadge({ status }) {
@@ -116,6 +121,7 @@ export default function EventDetail() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [participantSearch, setParticipantSearch] = useState('');
+  const [showBookingModal, setShowBookingModal] = useState(false);
   const skipFocusRefresh = useRef(true);
   const scrollViewRef = useRef(null);
 
@@ -182,6 +188,11 @@ export default function EventDetail() {
   const capacityFill =
     totalCapacity && totalCapacity > 0 ? Math.min(1, participants.length / totalCapacity) : 0;
   const { registered: registeredCount, scanned: scannedCount } = getParticipantCounts(participants);
+  const remainingCapacity = event ? getEventRemainingCapacity(event) : 0;
+  const alreadyBooked = hasUserBookedEvent(participants, user?.email);
+  const isBookableStatus = statusLabel === 'Today' || statusLabel === 'Upcoming';
+  const canShowBooking = !canAccessScan && isBookableStatus && !hasEventPassed(event);
+  const canOpenBooking = canShowBooking && canBookEvent(event) && !alreadyBooked;
 
   const openScanner = () => {
     router.push({
@@ -313,6 +324,41 @@ export default function EventDetail() {
               ) : null}
             </SectionCard>
 
+            {!canAccessScan && canShowBooking ? (
+              <SectionCard className="p-4">
+                <Text className="text-base font-bold text-beta dark:text-light">Free Event</Text>
+                <Text className="text-sm text-beta/60 dark:text-light/60 mt-1">
+                  {remainingCapacity > 0
+                    ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
+                    : 'This event is fully booked'}
+                </Text>
+
+                {alreadyBooked ? (
+                  <Pressable
+                    disabled
+                    className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
+                  >
+                    <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Already Booked</Text>
+                  </Pressable>
+                ) : remainingCapacity <= 0 ? (
+                  <Pressable
+                    disabled
+                    className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
+                  >
+                    <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Fully Booked</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => setShowBookingModal(true)}
+                    disabled={!canOpenBooking}
+                    className="mt-4 items-center justify-center rounded-2xl bg-beta dark:bg-alpha py-3.5 active:opacity-90"
+                  >
+                    <Text className="text-sm font-bold text-light dark:text-beta">Book now</Text>
+                  </Pressable>
+                )}
+              </SectionCard>
+            ) : null}
+
             {canAccessScan && !scannable ? (
               <SectionCard className="p-4">
                 <View className="flex-row items-start gap-3">
@@ -416,6 +462,16 @@ export default function EventDetail() {
           </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      <EventBookingModal
+        visible={showBookingModal}
+        event={event}
+        user={user}
+        onClose={() => setShowBookingModal(false)}
+        onSuccess={() => {
+          fetchEvent(true);
+        }}
+      />
     </AppLayout>
   );
 }

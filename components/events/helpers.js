@@ -116,6 +116,25 @@ export function getEventStatusLabel(event) {
   return 'Past';
 }
 
+// True when the event datetime has already passed (matches web booking rules).
+export function hasEventPassed(event) {
+  const eventDate = getEventDate(event);
+  if (!eventDate) return true;
+  return Date.now() > eventDate.getTime();
+}
+
+// Non-scan users may book when the event is still open and has remaining capacity.
+export function canBookEvent(event) {
+  if (!event || hasEventPassed(event)) return false;
+  const remaining = Number(event?.capacity);
+  return Number.isFinite(remaining) && remaining > 0;
+}
+
+export function getEventRemainingCapacity(event) {
+  const remaining = Number(event?.capacity);
+  return Number.isFinite(remaining) ? remaining : 0;
+}
+
 // API stores remaining spots in event.capacity; original total = remaining + registrations.
 export function getEventTotalCapacity(event, registeredCount = 0) {
   const registered = Math.max(0, Number(registeredCount) || 0);
