@@ -72,6 +72,10 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
     onClose?.();
   };
 
+  const handleDone = () => {
+    onClose?.();
+  };
+
   const updateAnswer = (key, value) => {
     setAnswers((current) => ({ ...current, [key]: value }));
     setErrors((current) => {
@@ -299,7 +303,7 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
               </Text>
             </View>
             <Pressable
-              onPress={handleClose}
+              onPress={successMessage ? handleDone : handleClose}
               className="w-10 h-10 rounded-2xl bg-beta/10 dark:bg-light/10 items-center justify-center"
             >
               <Ionicons name="close" size={22} color={isDark ? Colors.light : Colors.beta} />
@@ -314,7 +318,7 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
               <Text className="text-lg font-bold text-beta dark:text-light text-center">Booking Confirmed!</Text>
               <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-2">{successMessage}</Text>
               <Pressable
-                onPress={handleClose}
+                onPress={handleDone}
                 className="mt-6 bg-beta dark:bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
               >
                 <Text className="text-light dark:text-beta font-bold">Done</Text>
