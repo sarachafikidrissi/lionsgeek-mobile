@@ -63,17 +63,21 @@ export default function TabLayout() {
       "person.fill": focused ? "person" : "person-outline",
       "magnifyingglass": focused ? "search" : "search-outline",
       "bell.fill": focused ? "notifications" : "notifications-outline",
+      "qr-code": focused ? "qr-code" : "qr-code-outline",
+      "ticket": focused ? "ticket" : "ticket-outline",
+      "school": focused ? "school" : "school-outline",
     };
     return iconMap[sfSymbolName] || sfSymbolName;
   };
 
   const tabScreen = [
-    { route: "index", name: "Home", icon: "house.fill", showTab: true, roles: [] }, // Everyone
-    { route: "reservations", name: "Reservations", icon: "calendar", showTab: true, roles: [] }, // Everyone
-    { route: "training", name: "Training", icon: "school", showTab: true, roles: [] }, // Everyone
-    { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill", showTab: true, roles: [] },
-    { route: "profile", name: "Profile", icon: "person.fill", showTab: true, roles: [] }, // Everyone
-  ].filter(screen => screen.showTab)
+    { route: "index", name: "Home", icon: "house.fill" },
+    { route: "reservations", name: "Reservations", icon: "calendar" },
+    { route: "training", name: "Training", icon: "school" },
+    { route: "events", name: "Events", icon: "ticket" },
+    { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill" },
+    { route: "profile", name: "Profile", icon: "person.fill" },
+  ];
 
   const hiddenScreens = [
     // hado mo2a9atan hna
@@ -83,6 +87,7 @@ export default function TabLayout() {
     { route: "home", name: "Home", icon: "house.fill", showTab: false }, // Hide duplicate home tab
     { route: "search", name: "Search", icon: "magnifyingglass", showTab: false },
     { route: "notifications", name: "Notifications", icon: "bell.fill", showTab: false },
+    { route: "infoSession", name: "Info Session", icon: "school", showTab: false },
   ]
 
 
@@ -166,7 +171,6 @@ export default function TabLayout() {
                 />
               );
             },
-            tabBarStyle: screen.showTab ? undefined : { display: 'none' },
           }}
         />
       ))}

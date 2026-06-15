@@ -13,6 +13,8 @@ module.exports = {
         dark_gray: "#1f2326",
         light: "#fafafa",
         dark: "#171717",
+        card: "#1c1c1c",
+        card_border: "#2e2e2e",
 
       },
     },

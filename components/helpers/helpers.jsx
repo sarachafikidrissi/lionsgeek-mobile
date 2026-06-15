@@ -94,3 +94,10 @@ export function userHasAdminRole(user) {
   return getUserRolesNormalized(user).includes('admin');
 }
 
+// True when the user may access the mobile Scan tab (admin or explicit grant).
+export function userCanAccessScan(user) {
+  if (userHasAdminRole(user)) return true;
+  const flag = user?.access_scan;
+  return flag === 1 || flag === true || flag === '1';
+}
+
