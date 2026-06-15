@@ -226,9 +226,9 @@ export default function EventDetail() {
         <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
           <Pressable
             onPress={() => router.back()}
-            className="w-10 h-10 rounded-xl bg-beta/15 dark:bg-alpha/15 items-center justify-center active:opacity-70"
+            className="w-10 h-10 rounded-xl items-center justify-center active:opacity-70"
           >
-            <Ionicons name="arrow-back" size={20} color={accentIcon} />
+            <Ionicons name="arrow-back" size={20} color={isDark ? Colors.light : Colors.beta} />
           </Pressable>
           <View className="flex-1 min-w-0">
             <Text className="text-xs font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">

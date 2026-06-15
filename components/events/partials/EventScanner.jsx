@@ -259,7 +259,7 @@ export default function EventScanner() {
         <View style={styles.overlay} pointerEvents="box-none">
           <View style={styles.header}>
             <Pressable onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={20} color={Colors.light} />
+              <Ionicons name="arrow-back" size={20} color={isDark ? Colors.light : Colors.beta} />
             </Pressable>
             <View style={styles.headerCenter}>
               <Text style={styles.headerEyebrow}>SCANNING</Text>
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(33, 37, 41, 0.6)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
