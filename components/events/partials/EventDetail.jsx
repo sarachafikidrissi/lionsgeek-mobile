@@ -195,8 +195,13 @@ export default function EventDetail() {
   const eventHasPassed = event ? hasEventPassed(event) : false;
   const isPrivate = event ? isPrivateEvent(event) : false;
   const scanDisabledLabel = eventHasPassed ? 'Event ended' : 'Not today';
-  const canShowBooking = !canAccessScan && !isPrivate;
-  const canOpenBooking = canShowBooking && canBookEvent(event) && !alreadyBooked && !eventHasPassed;
+  const isStaffBooking = canAccessScan;
+  const canShowBooking = isStaffBooking || !isPrivate;
+  const canOpenBooking =
+    canShowBooking &&
+    canBookEvent(event) &&
+    (isAdmin || !eventHasPassed) &&
+    (isAdmin || !alreadyBooked);
 
   const openScanner = () => {
     router.push({
@@ -346,25 +351,33 @@ export default function EventDetail() {
               ) : null}
             </SectionCard>
 
-            {!canAccessScan && canShowBooking ? (
+            {canShowBooking ? (
               <SectionCard className="p-4">
-                <Text className="text-base font-bold text-beta dark:text-light">Free Event</Text>
+                <Text className="text-base font-bold text-beta dark:text-light">
+                  {isStaffBooking ? 'Registration' : 'Free Event'}
+                </Text>
                 <Text className="text-sm text-beta/60 dark:text-light/60 mt-1">
-                  {eventHasPassed
-                    ? 'This event has ended'
-                    : remainingCapacity > 0
-                      ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
-                      : 'This event is fully booked'}
+                  {isStaffBooking
+                    ? eventHasPassed
+                      ? 'This event has ended'
+                      : remainingCapacity > 0
+                        ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
+                        : 'This event is fully booked'
+                    : eventHasPassed
+                      ? 'This event has ended'
+                      : remainingCapacity > 0
+                        ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
+                        : 'This event is fully booked'}
                 </Text>
 
-                {alreadyBooked ? (
+                {!isAdmin && alreadyBooked ? (
                   <Pressable
                     disabled
                     className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
                   >
                     <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Already Booked</Text>
                   </Pressable>
-                ) : eventHasPassed ? (
+                ) : !isAdmin && eventHasPassed ? (
                   <Pressable
                     disabled
                     className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
@@ -398,7 +411,7 @@ export default function EventDetail() {
               </SectionCard>
             ) : null}
 
-            {canAccessScan && !scannable && !isAdmin ? (
+            {/* {canAccessScan && !scannable && !isAdmin ? (
               <SectionCard className="p-4">
                 <View className="flex-row items-start gap-3">
                   <View className="w-10 h-10 rounded-xl bg-beta/8 dark:bg-light/8 items-center justify-center">
@@ -416,7 +429,7 @@ export default function EventDetail() {
                   </View>
                 </View>
               </SectionCard>
-            ) : null}
+            ) : null} */}
 
             {canAccessScan ? (
             <SectionCard className="p-4">
@@ -510,6 +523,7 @@ export default function EventDetail() {
         visible={showBookingModal}
         event={event}
         user={user}
+        staffMode={isStaffBooking}
         onClose={() => setShowBookingModal(false)}
         onSuccess={() => {
           fetchEvent(true);

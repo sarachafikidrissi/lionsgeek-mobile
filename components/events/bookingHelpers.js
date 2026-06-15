@@ -100,7 +100,24 @@ export function getBookingFields(event) {
   return fields;
 }
 
+function getUserProfileDefaults(user) {
+  if (!user || typeof user !== 'object') {
+    return { name: '', email: '', phone: '' };
+  }
+
+  const name = user.name ?? user.full_name ?? '';
+  const email = user.email ?? '';
+  const phone = user.phone ?? user.tel ?? user.mobile ?? '';
+
+  return {
+    name: name == null ? '' : String(name).trim(),
+    email: email == null ? '' : String(email).trim(),
+    phone: phone == null ? '' : String(phone).trim(),
+  };
+}
+
 export function buildInitialAnswers(fields, user = null) {
+  const profile = getUserProfileDefaults(user);
   const answers = {};
 
   fields.forEach((field) => {
@@ -113,12 +130,12 @@ export function buildInitialAnswers(fields, user = null) {
       return;
     }
 
-    if (normalizedKey === 'name' && user?.name) {
-      answers[key] = String(user.name);
-    } else if (normalizedKey === 'email' && user?.email) {
-      answers[key] = String(user.email);
-    } else if (normalizedKey === 'phone' && user?.phone) {
-      answers[key] = String(user.phone);
+    if ((normalizedKey === 'name' || normalizedKey === 'full_name') && profile.name) {
+      answers[key] = profile.name;
+    } else if ((normalizedKey === 'email' || field.type === 'email') && profile.email) {
+      answers[key] = profile.email;
+    } else if ((normalizedKey === 'phone' || field.type === 'tel') && profile.phone) {
+      answers[key] = profile.phone;
     } else {
       answers[key] = '';
     }

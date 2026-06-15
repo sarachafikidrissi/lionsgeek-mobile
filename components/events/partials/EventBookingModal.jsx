@@ -45,7 +45,7 @@ function FieldError({ message }) {
   return <Text className="text-xs text-error mt-1">{message}</Text>;
 }
 
-export default function EventBookingModal({ visible, event, user, onClose, onSuccess }) {
+export default function EventBookingModal({ visible, event, user, onClose, onSuccess, staffMode = false }) {
   const isDark = useColorScheme() === 'dark';
   const accentFill = getAccentFillColor(isDark);
   const onAccentText = getOnAccentTextColor(isDark);
@@ -294,12 +294,16 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
 
           <View className="px-5 pb-3 flex-row items-start justify-between gap-3 border-b border-beta/10 dark:border-light/10">
             <View className="flex-1 min-w-0">
-              <Text className="text-xl font-bold text-beta dark:text-light">Book Event</Text>
+              <Text className="text-xl font-bold text-beta dark:text-light">
+                {staffMode ? 'Register participant' : 'Book Event'}
+              </Text>
               <Text className="text-sm text-beta/60 dark:text-light/60 mt-1" numberOfLines={2}>
                 {eventTitle}
               </Text>
               <Text className="text-xs text-beta/50 dark:text-light/50 mt-1">
-                Enter your details to book this event. You will receive a confirmation email.
+                {staffMode
+                  ? 'Enter the participant details. They will receive a confirmation email with a QR code.'
+                  : 'Enter your details to book this event. You will receive a confirmation email.'}
               </Text>
             </View>
             <Pressable
@@ -315,7 +319,9 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
               <View className="w-16 h-16 rounded-full bg-good/15 items-center justify-center mb-4">
                 <Ionicons name="checkmark-circle" size={40} color={Colors.good} />
               </View>
-              <Text className="text-lg font-bold text-beta dark:text-light text-center">Booking Confirmed!</Text>
+              <Text className="text-lg font-bold text-beta dark:text-light text-center">
+                {staffMode ? 'Registration complete!' : 'Booking Confirmed!'}
+              </Text>
               <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-2">{successMessage}</Text>
               <Pressable
                 onPress={handleDone}
@@ -362,7 +368,9 @@ export default function EventBookingModal({ visible, event, user, onClose, onSuc
                   {submitting ? (
                     <ActivityIndicator color={onAccentText} />
                   ) : (
-                    <Text className="text-sm font-bold text-light dark:text-beta">Book Event</Text>
+                    <Text className="text-sm font-bold text-light dark:text-beta">
+                      {staffMode ? 'Register' : 'Book Event'}
+                    </Text>
                   )}
                 </Pressable>
               </View>
