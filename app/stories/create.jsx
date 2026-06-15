@@ -121,9 +121,11 @@ export default function CreateStoryScreen() {
         // looping only loops the entire file.
         sound.setOnPlaybackStatusUpdate((status) => {
           if (!status?.isLoaded) return;
-          const end = musicOverlay.end_ms || 15000;
-          if (status.positionMillis >= end - 50) {
-            sound.setPositionAsync(musicOverlay.start_ms || 0).catch(() => {});
+          const start = musicOverlay.start_ms || 0;
+          const storyEnd = musicOverlay.end_ms || 60000;
+          const previewEnd = Math.min(start + 30000, storyEnd);
+          if (status.positionMillis >= previewEnd - 50) {
+            sound.setPositionAsync(start).catch(() => {});
           }
         });
       } catch (_) {
@@ -302,7 +304,7 @@ export default function CreateStoryScreen() {
   }, []);
 
   const addMusicOverlay = useCallback((data) => {
-    if (!data?.preview_url) return;
+    if (!data?.track_id) return;
     // Replace existing music overlay if present (one song per story, just like Instagram).
     const disp = data.display ?? 'none';
     const o = {
@@ -318,9 +320,10 @@ export default function CreateStoryScreen() {
       artist:      data.artist,
       album:       data.album,
       cover_url:   data.cover_url,
-      preview_url: data.preview_url,
+      preview_url: data.preview_url || null,
+      duration_ms: data.duration_ms || null,
       start_ms:    data.start_ms ?? 0,
-      end_ms:      data.end_ms ?? 15000,
+      end_ms:      data.end_ms ?? data.story_clip_ms ?? 60000,
       display:     disp,
       source:      data.source || 'spotify+itunes',
     };
