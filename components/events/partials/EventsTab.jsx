@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppContext } from '@/context';
+import { userCanAccessScan } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import { getAccentFillColor, getAccentIconColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -9,12 +11,15 @@ import Skeleton from '@/components/ui/Skeleton';
 import EventCard from '@/components/events/partials/EventCard';
 import {
   filterEventsByName,
+  filterEventsForViewer,
   normalizeEvents,
   resolveEventsError,
   sortEventsByDate,
 } from '@/components/events/helpers';
 
 export default function EventsTab() {
+  const { user } = useAppContext();
+  const canAccessScan = userCanAccessScan(user);
   const isDark = useColorScheme() === 'dark';
   const accentIcon = getAccentIconColor(isDark);
   const accentFill = getAccentFillColor(isDark);
@@ -47,9 +52,14 @@ export default function EventsTab() {
     fetchEvents();
   }, [fetchEvents]);
 
+  const viewerEvents = useMemo(
+    () => filterEventsForViewer(events, user),
+    [events, user]
+  );
+
   const displayedEvents = useMemo(
-    () => sortEventsByDate(filterEventsByName(events, searchQuery), sortOrder),
-    [events, searchQuery, sortOrder]
+    () => sortEventsByDate(filterEventsByName(viewerEvents, searchQuery), sortOrder),
+    [viewerEvents, searchQuery, sortOrder]
   );
 
   const openEvent = (eventId) => {
@@ -123,7 +133,7 @@ export default function EventsTab() {
     );
   }
 
-  if (events.length === 0) {
+  if (viewerEvents.length === 0) {
     return (
       <View className="flex-1">
         {searchBar}
@@ -163,7 +173,12 @@ export default function EventsTab() {
       ) : (
         <View className="px-4">
           {displayedEvents.map((event) => (
-            <EventCard key={event.id} event={event} onPress={() => openEvent(event.id)} />
+            <EventCard
+              key={event.id}
+              event={event}
+              onPress={() => openEvent(event.id)}
+              treatPastByDateTime={!canAccessScan}
+            />
           ))}
         </View>
       )}

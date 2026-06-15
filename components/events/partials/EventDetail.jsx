@@ -3,22 +3,28 @@ import { View, Text, ScrollView, Pressable, TextInput, RefreshControl, KeyboardA
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/context';
-import { userCanAccessScan } from '@/components/helpers/helpers';
+import { userCanAccessScan, userHasAdminRole } from '@/components/helpers/helpers';
 import EventsInfoAPI from '@/api/eventsInfoSection';
 import AppLayout from '@/components/layout/AppLayout';
-import AccessDenied from '@/components/events/partials/AccessDenied';
 import Skeleton from '@/components/ui/Skeleton';
 import ParticipantsList from '@/components/events/partials/ParticipantsList';
+import EventBookingModal from '@/components/events/partials/EventBookingModal';
 import EventCoverImage from '@/components/events/partials/EventCoverImage';
+import { hasUserBookedEvent } from '@/components/events/bookingHelpers';
 import { Colors, getAccentFillColor, getAccentIconColor, getOnAccentTextColor } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
-  canScanEvent,
+  userCanBookEvent,
+  userCanScanEvent,
   formatEventCapacity,
+  formatEventDate,
   getEventCoverUrl,
   getEventDisplayName,
+  getEventRemainingCapacity,
   getEventStatusLabel,
   getEventTotalCapacity,
+  hasEventPassed,
+  isPrivateEvent,
   getParticipantCounts,
 } from '@/components/events/helpers';
 
@@ -53,7 +59,7 @@ function StatusBadge({ status }) {
 function SectionCard({ children, className = '' }) {
   return (
     <View
-      className={`bg-light dark:bg-dark_gray border border-beta/8 dark:border-light/8 rounded-2xl overflow-hidden ${className}`}
+      className={`bg-white dark:bg-card border border-beta/8 dark:border-card_border rounded-2xl overflow-hidden ${className}`}
     >
       {children}
     </View>
@@ -101,6 +107,8 @@ function DetailSkeleton({ isDark }) {
 
 export default function EventDetail() {
   const { user } = useAppContext();
+  const canAccessScan = userCanAccessScan(user);
+  const isAdmin = userHasAdminRole(user);
   const params = useLocalSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const colorScheme = useColorScheme();
@@ -115,6 +123,7 @@ export default function EventDetail() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [participantSearch, setParticipantSearch] = useState('');
+  const [showBookingModal, setShowBookingModal] = useState(false);
   const skipFocusRefresh = useRef(true);
   const scrollViewRef = useRef(null);
 
@@ -172,15 +181,24 @@ export default function EventDetail() {
     }, [fetchEvent])
   );
 
-  const scannable = event ? canScanEvent(event) : false;
+  const scannable = event ? userCanScanEvent(event, user) : false;
   const title = getEventDisplayName(event?.name);
   const coverUrl = getEventCoverUrl(event?.cover);
-  const statusLabel = event ? getEventStatusLabel(event) : null;
+  const statusLabel = event ? getEventStatusLabel(event, { treatPastByDateTime: !canAccessScan }) : null;
   const capacityLabel = event ? formatEventCapacity(event, participants.length) : null;
   const totalCapacity = event ? getEventTotalCapacity(event, participants.length) : null;
   const capacityFill =
     totalCapacity && totalCapacity > 0 ? Math.min(1, participants.length / totalCapacity) : 0;
   const { registered: registeredCount, scanned: scannedCount } = getParticipantCounts(participants);
+  const remainingCapacity = event ? getEventRemainingCapacity(event) : 0;
+  const alreadyBooked = hasUserBookedEvent(participants, user?.email);
+  const eventHasPassed = event ? hasEventPassed(event) : false;
+  const isPrivate = event ? isPrivateEvent(event) : false;
+  const scanDisabledLabel = eventHasPassed ? 'Event ended' : 'Not today';
+  const isStaffBooking = canAccessScan;
+  const canShowBooking = isStaffBooking || !isPrivate;
+  const canOpenBooking =
+    canShowBooking && userCanBookEvent(event, user) && (isAdmin || !alreadyBooked);
 
   const openScanner = () => {
     router.push({
@@ -199,10 +217,6 @@ export default function EventDetail() {
     });
   };
 
-  if (!userCanAccessScan(user)) {
-    return <AccessDenied />;
-  }
-
   return (
     <AppLayout showNavbar={false}>
       <KeyboardAvoidingView
@@ -212,13 +226,13 @@ export default function EventDetail() {
         <View className="pt-12 pb-3 px-4 flex-row items-center gap-2 border-b border-beta/8 dark:border-light/8">
           <Pressable
             onPress={() => router.back()}
-            className="w-10 h-10 rounded-xl bg-beta/15 dark:bg-alpha/15 items-center justify-center active:opacity-70"
+            className="w-10 h-10 rounded-xl items-center justify-center active:opacity-70"
           >
-            <Ionicons name="arrow-back" size={20} color={accentIcon} />
+            <Ionicons name="arrow-back" size={20} color={isDark ? Colors.light : Colors.beta} />
           </Pressable>
           <View className="flex-1 min-w-0">
             <Text className="text-xs font-semibold uppercase tracking-wide text-beta/45 dark:text-light/45">
-              Scan
+              Events
             </Text>
             {loading ? (
               <Skeleton width={160} height={16} borderRadius={6} isDark={isDark} />
@@ -228,7 +242,7 @@ export default function EventDetail() {
               </Text>
             )}
           </View>
-          {!loading && !error && (
+          {canAccessScan && !loading && !error && (
             <Pressable
               onPress={scannable ? openScanner : undefined}
               disabled={!scannable}
@@ -246,7 +260,7 @@ export default function EventDetail() {
                   scannable ? 'text-light dark:text-beta' : 'text-beta/35 dark:text-light/35'
                 }`}
               >
-                {scannable ? 'Scan' : 'Not today'}
+                {scannable ? 'Scan' : scanDisabledLabel}
               </Text>
             </Pressable>
           )}
@@ -269,6 +283,24 @@ export default function EventDetail() {
             >
               <Ionicons name="refresh" size={18} color={onAccentText} />
               <Text className="text-light dark:text-beta font-bold">Try again</Text>
+            </Pressable>
+          </View>
+        ) : isPrivate && !canAccessScan ? (
+          <View className="flex-1 items-center justify-center px-8">
+            <View className="w-16 h-16 rounded-2xl bg-beta/10 dark:bg-light/10 items-center justify-center mb-4">
+              <Ionicons name="lock-closed-outline" size={32} color={accentIcon} />
+            </View>
+            <Text className="text-base font-semibold text-beta dark:text-light text-center">
+              Private event
+            </Text>
+            <Text className="text-sm text-beta/60 dark:text-light/60 text-center mt-2">
+              This event is not available in the app.
+            </Text>
+            <Pressable
+              onPress={() => router.back()}
+              className="mt-6 bg-beta dark:bg-alpha px-6 py-3.5 rounded-2xl active:opacity-90"
+            >
+              <Text className="text-light dark:text-beta font-bold">Go back</Text>
             </Pressable>
           </View>
         ) : (
@@ -297,22 +329,108 @@ export default function EventDetail() {
               ) : null}
             </View>
 
-            {!scannable ? (
+            <SectionCard className="p-4">
+              <View className="flex-row items-center gap-2 mb-3">
+                <View className="w-8 h-8 rounded-lg bg-beta/15 dark:bg-beta/40 items-center justify-center">
+                  <Ionicons name="information-circle-outline" size={16} color={accentIcon} />
+                </View>
+                <Text className="text-base font-bold text-beta dark:text-light">Details</Text>
+              </View>
+              <View className="flex-row items-center gap-2">
+                <Ionicons name="time-outline" size={16} color={accentIcon} />
+                <Text className="text-sm text-beta/80 dark:text-light/80">{formatEventDate(event)}</Text>
+              </View>
+              {event?.location ? (
+                <View className="flex-row items-center gap-2 mt-2">
+                  <Ionicons name="location-outline" size={16} color={accentIcon} />
+                  <Text className="text-sm text-beta/80 dark:text-light/80 flex-1">{event.location}</Text>
+                </View>
+              ) : null}
+            </SectionCard>
+
+            {canShowBooking ? (
+              <SectionCard className="p-4">
+                <Text className="text-base font-bold text-beta dark:text-light">
+                  {isStaffBooking ? 'Registration' : 'Free Event'}
+                </Text>
+                <Text className="text-sm text-beta/60 dark:text-light/60 mt-1">
+                  {isAdmin
+                    ? 'Admins can register participants anytime, including after the event.'
+                    : isStaffBooking
+                      ? eventHasPassed
+                        ? 'This event has ended'
+                        : remainingCapacity > 0
+                          ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
+                          : 'This event is fully booked'
+                      : eventHasPassed
+                        ? 'This event has ended'
+                        : remainingCapacity > 0
+                          ? `${remainingCapacity} spot${remainingCapacity === 1 ? '' : 's'} remaining`
+                          : 'This event is fully booked'}
+                </Text>
+
+                {!isAdmin && alreadyBooked ? (
+                  <Pressable
+                    disabled
+                    className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
+                  >
+                    <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Already Booked</Text>
+                  </Pressable>
+                ) : !isAdmin && eventHasPassed ? (
+                  <Pressable
+                    disabled
+                    className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
+                  >
+                    <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Event Ended</Text>
+                  </Pressable>
+                ) : !isAdmin && remainingCapacity <= 0 ? (
+                  <Pressable
+                    disabled
+                    className="mt-4 items-center justify-center rounded-2xl bg-beta/10 dark:bg-light/10 py-3.5"
+                  >
+                    <Text className="text-sm font-bold text-beta/50 dark:text-light/50">Fully Booked</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => setShowBookingModal(true)}
+                    disabled={!canOpenBooking}
+                    className={`mt-4 items-center justify-center rounded-2xl py-3.5 ${
+                      canOpenBooking ? 'bg-beta dark:bg-alpha active:opacity-90' : 'bg-beta/10 dark:bg-light/10'
+                    }`}
+                  >
+                    <Text
+                      className={`text-sm font-bold ${
+                        canOpenBooking ? 'text-light dark:text-beta' : 'text-beta/50 dark:text-light/50'
+                      }`}
+                    >
+                      {isAdmin && isStaffBooking ? 'Register participant' : 'Book now'}
+                    </Text>
+                  </Pressable>
+                )}
+              </SectionCard>
+            ) : null}
+
+            {/* {canAccessScan && !scannable && !isAdmin ? (
               <SectionCard className="p-4">
                 <View className="flex-row items-start gap-3">
                   <View className="w-10 h-10 rounded-xl bg-beta/8 dark:bg-light/8 items-center justify-center">
                     <Ionicons name="lock-closed-outline" size={18} color={isDark ? Colors.light : Colors.beta} />
                   </View>
                   <View className="flex-1 min-w-0">
-                    <Text className="text-sm font-bold text-beta dark:text-light">Scan not available yet</Text>
+                    <Text className="text-sm font-bold text-beta dark:text-light">
+                      {eventHasPassed ? 'Scan closed' : 'Scan not available yet'}
+                    </Text>
                     <Text className="text-xs text-beta/55 dark:text-light/55 mt-1 leading-5">
-                      QR scanning opens on the event day and stays available until midnight.
+                      {eventHasPassed
+                        ? 'QR scanning is closed after the event. Contact an admin for late check-in.'
+                        : 'QR scanning opens on the event day and closes after the event date and time.'}
                     </Text>
                   </View>
                 </View>
               </SectionCard>
-            ) : null}
+            ) : null} */}
 
+            {canAccessScan ? (
             <SectionCard className="p-4">
               <View className="flex-row items-center justify-between mb-1">
                 <View className="flex-row items-center gap-2">
@@ -395,9 +513,21 @@ export default function EventDetail() {
                 }
               />
             </SectionCard>
+            ) : null}
           </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      <EventBookingModal
+        visible={showBookingModal}
+        event={event}
+        user={user}
+        staffMode={isStaffBooking}
+        onClose={() => setShowBookingModal(false)}
+        onSuccess={() => {
+          fetchEvent(true);
+        }}
+      />
     </AppLayout>
   );
 }

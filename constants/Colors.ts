@@ -10,6 +10,9 @@ export const Colors = {
   dark_gray: '#1f2326',  // --color-dark_gray
   light: '#fafafa',      // --color-light
   dark: '#171717',       // --color-dark
+  card: '#ffffff',       // home feed / post cards (light)
+  card_dark: '#1c1c1c',  // home feed / post cards (dark)
+  card_border_dark: '#2e2e2e',
 } as const;
 
 // Light mode uses beta/light; dark mode keeps alpha accents.
