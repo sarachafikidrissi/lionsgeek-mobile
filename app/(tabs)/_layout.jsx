@@ -74,16 +74,16 @@ export default function TabLayout() {
   const tabScreen = [
     { route: "index", name: "Home", icon: "house.fill" },
     { route: "reservations", name: "Reservations", icon: "calendar" },
-    { route: "training", name: "Training", icon: "school" },
     { route: "events", name: "Events", icon: "ticket" },
     { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill" },
     { route: "profile", name: "Profile", icon: "person.fill" },
   ];
-
+  
   const hiddenScreens = [
     // hado mo2a9atan hna
     { route: "members", name: "Members", icon: "person.3.fill", showTab: isAdmin, roles: ['admin', 'coach'] },
     { route: "projects", name: "Projects", icon: "hammer.fill", showTab: true, roles: [] }, // 
+    { route: "training", name: "Training", icon: "school" },
     // tal 7ad  hna
     { route: "home", name: "Home", icon: "house.fill", showTab: false }, // Hide duplicate home tab
     { route: "search", name: "Search", icon: "magnifyingglass", showTab: false },
@@ -95,7 +95,7 @@ export default function TabLayout() {
   const isDark = colorScheme === 'dark';
   const activeRingColor = Colors.alpha;
 
-  const resolveProfileAvatarValue = () => user?.avatar || user?.image;
+  // const resolveProfileAvatarValue = () => user?.avatar || user?.image;
 
   return (
     <Tabs
