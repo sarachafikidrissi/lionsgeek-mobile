@@ -3,11 +3,13 @@ import * as Ably from "ably";
 import API from "@/api";
 import { useRouter } from "expo-router";
 import { useAppContext } from "@/context";
-import CallKeep from "@/services/callKeep";
 
 const CallContext = createContext(null);
 
+import { bootLogSync } from '@/utils/bootDebug';
+
 export function CallProvider({ children }) {
+    bootLogSync('call_provider_render', { hypothesisId: 'C' });
     const { user, token } = useAppContext();
     const router = useRouter();
     const [incomingCall, setIncomingCall] = useState(null);
@@ -39,7 +41,6 @@ export function CallProvider({ children }) {
         let mounted = true;
         (async () => {
             try {
-                // Sanity-check that the backend can mint tokens for this user.
                 const initialTokenData = await API.getCallAblyToken(token);
                 if (!mounted || !initialTokenData?.token) return;
 
@@ -64,31 +65,12 @@ export function CallProvider({ children }) {
                 channel.subscribe("incoming-call", async (msg) => {
                     const data = msg.data;
                     if (!data?.call_id) return;
-                    const callerName = data.caller?.name || "Incoming call";
                     setIncomingCall({
                         callId: data.call_id,
                         channel_name: data.channel_name,
                         caller: data.caller || {},
                         caller_token: data.caller_token,
                     });
-                    // Show the OS-level native incoming call UI with system
-                    // ringtone (CallKit on iOS / ConnectionService on Android).
-                    let callKeepOk = false;
-                    try {
-                        await CallKeep.showIncomingCall({
-                            callId: data.call_id,
-                            callerName,
-                            callerHandle: String(data.caller?.id ?? callerName),
-                        });
-                        callKeepOk = true;
-                    } catch (e) {
-                        console.warn('[CallContext] CallKeep.showIncomingCall failed', e);
-                    }
-                    // Navigate to the in-app screen as a fallback. On Android with
-                    // ConnectionService the system UI is shown over the app; on
-                    // iOS CallKit takes over the whole screen so the user
-                    // generally never sees this. If CallKeep failed the in-app
-                    // screen at least gives the user manual accept/reject.
                     router.replace("/incoming-call");
                 });
 
@@ -104,27 +86,18 @@ export function CallProvider({ children }) {
                             isCaller: true,
                         });
                         setPendingCallAsCaller(null);
-                        try { CallKeep.setCallActive(CallKeep.getUuidForBackendId(data.call_id)); } catch (_) {}
                         setTimeout(() => router.replace("/call"), 0);
                     }
                 });
 
-                channel.subscribe("call-rejected", (msg) => {
-                    const callId = msg?.data?.call_id;
+                channel.subscribe("call-rejected", () => {
                     setPendingCallAsCaller(null);
-                    if (callId) CallKeep.endCallByBackendId(callId);
                 });
 
-                channel.subscribe("call-ended", (msg) => {
-                    const callId = msg?.data?.call_id;
+                channel.subscribe("call-ended", () => {
                     setActiveCall(null);
                     setIncomingCall(null);
                     setPendingCallAsCaller(null);
-                    if (callId) {
-                        CallKeep.endCallByBackendId(callId);
-                    } else {
-                        CallKeep.endAllCalls();
-                    }
                     router.replace("/(tabs)");
                 });
             } catch (e) {
@@ -142,77 +115,6 @@ export function CallProvider({ children }) {
         };
     }, [token, user?.id, channelName]);
 
-    // ──────────────────────────────────────────────────────────────────────
-    // CallKeep → CallContext bridge
-    // The user can answer / hang up directly from the native CallKit /
-    // ConnectionService UI (which is the whole point of using CallKeep).
-    // When that happens we get an event from the native side and have to
-    // translate it back into our existing accept / reject / end actions.
-    // ──────────────────────────────────────────────────────────────────────
-    useEffect(() => {
-        (async () => {
-            await CallKeep.setupCallKeep();
-        })();
-
-        const unsubscribe = CallKeep.addCallKeepListeners({
-            onAnswer: async ({ callId }) => {
-                console.log('[CallContext] CallKeep onAnswer → accept', { callId });
-                // The CallKeep UUID maps to the backend call id only if we
-                // already received the incoming-call Ably event; if so, the
-                // incomingCall state is already set, otherwise the call may
-                // have been delivered via a push notification while the app
-                // was killed – fall back to using the incomingCallRef.
-                if (!incomingCallRef.current || !tokenRef.current) {
-                    return;
-                }
-                try {
-                    const data = await API.acceptCall(incomingCallRef.current.callId, tokenRef.current);
-                    if (data?.token && data?.channel_name) {
-                        setActiveCall({
-                            callId: data.call_id,
-                            channelName: data.channel_name,
-                            token: data.token,
-                            isCaller: false,
-                        });
-                        setIncomingCall(null);
-                        try { CallKeep.setCallActive(CallKeep.getUuidForBackendId(data.call_id)); } catch (_) {}
-                        setTimeout(() => router.replace('/call'), 0);
-                    }
-                } catch (e) {
-                    console.error('[CallContext] CallKeep accept failed', e?.response?.data || e?.message);
-                    setIncomingCall(null);
-                }
-            },
-            onEndCall: async ({ callId }) => {
-                console.log('[CallContext] CallKeep onEndCall', { callId });
-                const tok = tokenRef.current;
-                // Decide what "end" means based on current state.
-                const incoming = incomingCallRef.current;
-                const active = activeCallRef.current;
-                const pending = pendingCallRef.current;
-                try {
-                    if (active?.callId && tok) {
-                        await API.endCall(active.callId, tok);
-                    } else if (incoming?.callId && tok) {
-                        await API.rejectCall(incoming.callId, tok);
-                    } else if (pending?.callId && tok) {
-                        await API.endCall(pending.callId, tok);
-                    }
-                } catch (e) {
-                    console.warn('[CallContext] CallKeep end action API call failed', e?.message);
-                }
-                setIncomingCall(null);
-                setActiveCall(null);
-                setPendingCallAsCaller(null);
-                router.replace('/(tabs)');
-            },
-        });
-
-        return () => {
-            try { unsubscribe?.(); } catch (_) {}
-        };
-    }, [router]);
-
     const initiate = useCallback(
         async (calleeId) => {
             if (!token) throw new Error("Not authenticated");
@@ -226,17 +128,6 @@ export function CallProvider({ children }) {
                 calleeId,
                 callee: { id: callee.id, name: callee.name, image: callee.image ?? callee.avatar },
             });
-            // Register the outgoing call with CallKeep so the OS knows we're in
-            // a call (proper audio routing, mute button on lock screen, etc.).
-            try {
-                await CallKeep.startOutgoingCall({
-                    callId: data.call_id,
-                    calleeName: callee.name || 'Calling…',
-                    calleeHandle: String(callee.id ?? calleeId),
-                });
-            } catch (e) {
-                console.warn('[CallContext] CallKeep.startOutgoingCall failed', e);
-            }
             setTimeout(() => router.replace("/outgoing-call"), 0);
             return data;
         },
@@ -248,7 +139,6 @@ export function CallProvider({ children }) {
             const pending = pendingCallRef.current;
             if (!pending?.callId || !token) {
                 setPendingCallAsCaller(null);
-                CallKeep.endAllCalls();
                 return;
             }
             try {
@@ -256,7 +146,6 @@ export function CallProvider({ children }) {
             } catch (e) {
                 console.error("[CallContext] Cancel call error:", e);
             }
-            CallKeep.endCallByBackendId(pending.callId);
             setPendingCallAsCaller(null);
             router.replace("/(tabs)");
         },
@@ -275,7 +164,6 @@ export function CallProvider({ children }) {
                 data = await API.acceptCall(incomingCall.callId, token);
             } catch (err) {
                 console.error('[CallContext] API.acceptCall failed', err?.response?.data || err?.message);
-                CallKeep.endCallByBackendId(incomingCall.callId);
                 setIncomingCall(null);
                 throw err;
             }
@@ -292,7 +180,6 @@ export function CallProvider({ children }) {
                     token: data.token,
                     isCaller: false,
                 });
-                try { CallKeep.setCallActive(CallKeep.getUuidForBackendId(data.call_id)); } catch (_) {}
             }
             setIncomingCall(null);
             if (data?.token && data?.channel_name) {
@@ -311,7 +198,6 @@ export function CallProvider({ children }) {
         try {
             await API.rejectCall(incomingCall.callId, token);
         } finally {
-            CallKeep.endCallByBackendId(incomingCall.callId);
             setIncomingCall(null);
         }
     }, [incomingCall, token]);
@@ -322,7 +208,6 @@ export function CallProvider({ children }) {
             try {
                 await API.endCall(activeCall.callId, token);
             } finally {
-                CallKeep.endCallByBackendId(activeCall.callId);
                 setActiveCall(null);
                 setPendingCallAsCaller(null);
             }
@@ -331,13 +216,11 @@ export function CallProvider({ children }) {
     );
 
     const clearIncomingCall = useCallback(() => {
-        if (incomingCall?.callId) CallKeep.endCallByBackendId(incomingCall.callId);
         setIncomingCall(null);
-    }, [incomingCall]);
+    }, []);
     const clearActiveCall = useCallback(() => {
-        if (activeCall?.callId) CallKeep.endCallByBackendId(activeCall.callId);
         setActiveCall(null);
-    }, [activeCall]);
+    }, []);
 
     const value = {
         incomingCall,

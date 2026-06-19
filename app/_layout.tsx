@@ -5,20 +5,18 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef } from 'react';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { View, ActivityIndicator, Platform, Alert } from 'react-native';
 import "../index.css";
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AppProvider, useAppContext } from '@/context';
 import { CallProvider } from '@/context/CallContext';
 import { setupNotificationListeners, removeNotificationListeners } from '@/services/pushNotifications';
-import { setupCallKeep } from '@/services/callKeep';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/Colors';
 import { Home as LogoIcon } from '@/components/logo';
 import Constants from 'expo-constants';
-
-SplashScreen.preventAutoHideAsync().catch(() => {});
+import { bootLogSync, readBootCrashReport, bootLog } from '@/utils/bootDebug';
 
 function stackHeaderOptions(
   title: string,
@@ -41,26 +39,45 @@ function RootLayoutNav() {
   const stackBg = colorScheme === 'dark' ? '#0D0C0B' : Colors.light;
 
   useEffect(() => {
-    // Avoid Expo Go push-token warnings / auto-registration errors.
-    // (In Expo Go, push tokens are not supported.)
+    const alertTimer = setTimeout(() => {
+      readBootCrashReport().then(({ previous, current }) => {
+        const crashed = previous && previous.stage !== 'boot_complete';
+        if (!crashed) return;
+        bootLog('previous_crash_stage', {
+          prevStage: previous.stage,
+          prevData: previous.data,
+          currentStage: current?.stage,
+        });
+        Alert.alert(
+          'Debug: last crash stage',
+          [
+            `Stopped at: ${previous.stage}`,
+            current?.stage ? `This launch reached: ${current.stage}` : '',
+            previous.data ? `Data: ${JSON.stringify(previous.data)}` : '',
+          ].filter(Boolean).join('\n'),
+          [{ text: 'OK' }]
+        );
+      });
+    }, 4000);
+
+    bootLogSync('root_layout_nav_effect', { appOwnership: Constants.appOwnership });
     if (Constants.appOwnership === 'expo') {
       return;
     }
 
-    // Initialise CallKeep (CallKit on iOS / ConnectionService on Android) so
-    // that incoming calls can ring the phone like a real call, even from a
-    // killed app state.
-    setupCallKeep().catch(() => {});
+    // #region agent log
+    fetch('http://127.0.0.1:7277/ingest/c64fc3e4-b2e1-4f88-b4fa-74f77e49ad88',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'54c5de'},body:JSON.stringify({sessionId:'54c5de',runId:'post-fix',location:'_layout.tsx:RootLayoutNav:beforeSetup',message:'about to call setupNotificationListeners',data:{},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    try {
+      const listeners = setupNotificationListeners();
+      notificationListenersRef.current = listeners;
+      bootLogSync('notification_listeners_ready');
+    } catch (e: any) {
+      bootLogSync('notification_listeners_error', { msg: String(e?.message) });
+    }
 
-    // Setup notification listeners when app mounts
-    setupNotificationListeners()
-      .then((listeners) => {
-        notificationListenersRef.current = listeners;
-      })
-      .catch(() => {});
-
-    // Cleanup listeners on unmount
     return () => {
+      clearTimeout(alertTimer);
       if (notificationListenersRef.current) {
         removeNotificationListeners(notificationListenersRef.current);
       }
@@ -213,9 +230,19 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync().catch(() => {});
+    bootLogSync('_layout_module', { appOwnership: Constants.appOwnership });
+    SplashScreen.preventAutoHideAsync()
+      .then(() => bootLogSync('splash_screen_prepared'))
+      .catch((e) => bootLogSync('splash_screen_error', { msg: String(e?.message) }));
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) {
+      bootLogSync('fonts_loading');
+      return;
     }
+    bootLogSync('fonts_loaded');
+    SplashScreen.hideAsync().catch(() => {});
   }, [loaded]);
 
   if (!loaded) {

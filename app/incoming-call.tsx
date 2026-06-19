@@ -5,7 +5,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallContext } from "@/context/CallContext";
 import { useAppContext } from "@/context";
 import { useCallRinger } from "@/hooks/useCallRinger";
-import { isCallKeepAvailable } from "@/services/callKeep";
 import API from "@/api";
 
 export default function IncomingCallScreen() {
@@ -60,13 +59,8 @@ export default function IncomingCallScreen() {
     caller_token: null,
   } : null);
 
-  // When the CallKeep native module is available (dev build), CallKit /
-  // ConnectionService plays the system ringtone so we keep the JS ringer
-  // silent to avoid double-ringing. In Expo Go (no native module), we fall
-  // back to the JS ringer so the user still hears something.
-  const callKeepReady = isCallKeepAvailable();
   useCallRinger({
-    enabled: !callKeepReady && !!displayCall && !activeCall,
+    enabled: !!displayCall && !activeCall,
     mode: 'incoming',
   });
 
