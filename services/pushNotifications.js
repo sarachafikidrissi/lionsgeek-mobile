@@ -3,14 +3,12 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import API from '@/api';
-import { bootLogSync } from '@/utils/bootDebug';
 
 let notificationHandlerConfigured = false;
 
 function ensureNotificationHandler() {
   if (notificationHandlerConfigured) return;
   notificationHandlerConfigured = true;
-  bootLogSync('push_notifications_before_handler', { hypothesisId: 'F' });
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -20,7 +18,6 @@ function ensureNotificationHandler() {
       shouldShowList: true,
     }),
   });
-  bootLogSync('push_notifications_after_handler', { hypothesisId: 'F' });
 }
 
 /**

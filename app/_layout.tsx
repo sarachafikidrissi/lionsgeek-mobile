@@ -1,22 +1,21 @@
 import 'react-native-reanimated';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
+import * as Font from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef } from 'react';
-import { View, ActivityIndicator, Platform, Alert } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import "../index.css";
 
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { AppProvider, useAppContext } from '@/context';
 import { CallProvider } from '@/context/CallContext';
 import { setupNotificationListeners, removeNotificationListeners } from '@/services/pushNotifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/Colors';
-import { Home as LogoIcon } from '@/components/logo';
 import Constants from 'expo-constants';
-import { bootLogSync, readBootCrashReport, bootLog } from '@/utils/bootDebug';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function stackHeaderOptions(
   title: string,
@@ -34,50 +33,22 @@ function stackHeaderOptions(
 }
 
 function RootLayoutNav() {
-  const notificationListenersRef = useRef(null);
+  const notificationListenersRef = useRef<ReturnType<typeof setupNotificationListeners> | null>(null);
   const { colorScheme } = useAppContext();
   const stackBg = colorScheme === 'dark' ? '#0D0C0B' : Colors.light;
 
   useEffect(() => {
-    const alertTimer = setTimeout(() => {
-      readBootCrashReport().then(({ previous, current }) => {
-        const crashed = previous && previous.stage !== 'boot_complete';
-        if (!crashed) return;
-        bootLog('previous_crash_stage', {
-          prevStage: previous.stage,
-          prevData: previous.data,
-          currentStage: current?.stage,
-        });
-        Alert.alert(
-          'Debug: last crash stage',
-          [
-            `Stopped at: ${previous.stage}`,
-            current?.stage ? `This launch reached: ${current.stage}` : '',
-            previous.data ? `Data: ${JSON.stringify(previous.data)}` : '',
-          ].filter(Boolean).join('\n'),
-          [{ text: 'OK' }]
-        );
-      });
-    }, 4000);
-
-    bootLogSync('root_layout_nav_effect', { appOwnership: Constants.appOwnership });
     if (Constants.appOwnership === 'expo') {
       return;
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7277/ingest/c64fc3e4-b2e1-4f88-b4fa-74f77e49ad88',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'54c5de'},body:JSON.stringify({sessionId:'54c5de',runId:'post-fix',location:'_layout.tsx:RootLayoutNav:beforeSetup',message:'about to call setupNotificationListeners',data:{},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     try {
-      const listeners = setupNotificationListeners();
-      notificationListenersRef.current = listeners;
-      bootLogSync('notification_listeners_ready');
-    } catch (e: any) {
-      bootLogSync('notification_listeners_error', { msg: String(e?.message) });
+      notificationListenersRef.current = setupNotificationListeners();
+    } catch (e) {
+      console.warn('[notifications] setup failed:', e);
     }
 
     return () => {
-      clearTimeout(alertTimer);
       if (notificationListenersRef.current) {
         removeNotificationListeners(notificationListenersRef.current);
       }
@@ -223,41 +194,38 @@ function AppThemedShell() {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
-    bootLogSync('_layout_module', { appOwnership: Constants.appOwnership });
-    SplashScreen.preventAutoHideAsync()
-      .then(() => bootLogSync('splash_screen_prepared'))
-      .catch((e) => bootLogSync('splash_screen_error', { msg: String(e?.message) }));
+    let mounted = true;
+    (async () => {
+      try {
+        await Font.loadAsync({
+          SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+        });
+      } catch (e) {
+        console.warn('[RootLayout] font load failed:', e);
+      } finally {
+        if (mounted) setAppReady(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  useEffect(() => {
-    if (!loaded) {
-      bootLogSync('fonts_loading');
-      return;
+  const onLayoutRootView = useCallback(() => {
+    if (appReady) {
+      SplashScreen.hideAsync().catch(() => {});
     }
-    bootLogSync('fonts_loaded');
-    SplashScreen.hideAsync().catch(() => {});
-  }, [loaded]);
+  }, [appReady]);
 
-  if (!loaded) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? Colors.dark : Colors.light }}>
-        <View className="flex-1 items-center justify-center bg-light dark:bg-dark">
-          <LogoIcon color={isDark ? '#fff' : '#000'} width={120} height={120} />
-          <ActivityIndicator style={{ marginTop: 24 }} size="large" color={Colors.alpha} />
-        </View>
-      </GestureHandlerRootView>
-    );
+  if (!appReady) {
+    return null;
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <AppProvider>
         <CallProvider>
           <AppThemedShell />

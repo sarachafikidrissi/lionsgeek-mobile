@@ -6,10 +6,7 @@ import { useAppContext } from "@/context";
 
 const CallContext = createContext(null);
 
-import { bootLogSync } from '@/utils/bootDebug';
-
 export function CallProvider({ children }) {
-    bootLogSync('call_provider_render', { hypothesisId: 'C' });
     const { user, token } = useAppContext();
     const router = useRouter();
     const [incomingCall, setIncomingCall] = useState(null);

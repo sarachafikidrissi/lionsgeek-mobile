@@ -2,12 +2,8 @@ import { useEffect } from 'react';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { bootLogSync } from '@/utils/bootDebug';
-
 export default function Entry() {
   useEffect(() => {
-    bootLogSync('entry_mounted', { hypothesisId: 'E' });
-    bootLogSync('boot_complete', { hypothesisId: 'E' });
     const checkFirstLaunch = async () => {
       try {
         // Check if user has seen onboarding
