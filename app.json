@@ -16,7 +16,6 @@
         "NSCameraUsageDescription": "This app needs access to your camera to scan QR codes for attendance.",
         "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice calls.",
         "UIBackgroundModes": [
-          "voip",
           "audio",
           "remote-notification"
         ]
@@ -39,13 +38,7 @@
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
-        "android.permission.MANAGE_OWN_CALLS",
-        "android.permission.BIND_TELECOM_CONNECTION_SERVICE",
-        "android.permission.READ_PHONE_STATE",
-        "android.permission.CALL_PHONE",
-        "android.permission.WAKE_LOCK",
-        "android.permission.USE_FULL_SCREEN_INTENT"
+        "android.permission.WAKE_LOCK"
       ],
       "package": "com.lionsgeek_pro.lionsgeek"
     },
@@ -59,6 +52,9 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
           "backgroundColor": "#fafafa",
           "dark": {
             "backgroundColor": "#171717"
@@ -79,12 +75,6 @@
         "expo-camera",
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan QR codes for attendance."
-        }
-      ],
-      [
-        "@config-plugins/react-native-callkeep",
-        {
-          "appName": "LionsGeek"
         }
       ],
       "expo-font"
