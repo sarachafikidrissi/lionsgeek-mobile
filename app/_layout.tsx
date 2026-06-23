@@ -1,21 +1,18 @@
 import 'react-native-reanimated';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
+import * as Font from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef } from 'react';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import "../index.css";
 
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { AppProvider, useAppContext } from '@/context';
 import { CallProvider } from '@/context/CallContext';
 import { setupNotificationListeners, removeNotificationListeners } from '@/services/pushNotifications';
-import { setupCallKeep } from '@/services/callKeep';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/Colors';
-import { Home as LogoIcon } from '@/components/logo';
 import Constants from 'expo-constants';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -36,30 +33,21 @@ function stackHeaderOptions(
 }
 
 function RootLayoutNav() {
-  const notificationListenersRef = useRef(null);
+  const notificationListenersRef = useRef<ReturnType<typeof setupNotificationListeners> | null>(null);
   const { colorScheme } = useAppContext();
   const stackBg = colorScheme === 'dark' ? '#0D0C0B' : Colors.light;
 
   useEffect(() => {
-    // Avoid Expo Go push-token warnings / auto-registration errors.
-    // (In Expo Go, push tokens are not supported.)
     if (Constants.appOwnership === 'expo') {
       return;
     }
 
-    // Initialise CallKeep (CallKit on iOS / ConnectionService on Android) so
-    // that incoming calls can ring the phone like a real call, even from a
-    // killed app state.
-    setupCallKeep().catch(() => {});
+    try {
+      notificationListenersRef.current = setupNotificationListeners();
+    } catch (e) {
+      console.warn('[notifications] setup failed:', e);
+    }
 
-    // Setup notification listeners when app mounts
-    setupNotificationListeners()
-      .then((listeners) => {
-        notificationListenersRef.current = listeners;
-      })
-      .catch(() => {});
-
-    // Cleanup listeners on unmount
     return () => {
       if (notificationListenersRef.current) {
         removeNotificationListeners(notificationListenersRef.current);
@@ -206,31 +194,38 @@ function AppThemedShell() {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
-    if (loaded) {
+    let mounted = true;
+    (async () => {
+      try {
+        await Font.loadAsync({
+          SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+        });
+      } catch (e) {
+        console.warn('[RootLayout] font load failed:', e);
+      } finally {
+        if (mounted) setAppReady(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const onLayoutRootView = useCallback(() => {
+    if (appReady) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [loaded]);
+  }, [appReady]);
 
-  if (!loaded) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? Colors.dark : Colors.light }}>
-        <View className="flex-1 items-center justify-center bg-light dark:bg-dark">
-          <LogoIcon color={isDark ? '#fff' : '#000'} width={120} height={120} />
-          <ActivityIndicator style={{ marginTop: 24 }} size="large" color={Colors.alpha} />
-        </View>
-      </GestureHandlerRootView>
-    );
+  if (!appReady) {
+    return null;
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <AppProvider>
         <CallProvider>
           <AppThemedShell />
