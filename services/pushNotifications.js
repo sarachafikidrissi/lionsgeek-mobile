@@ -146,7 +146,7 @@ function handleNotificationNavigation(data) {
 
   try {
     import('expo-router').then(({ router }) => {
-      const { type, link, post_id, project_id, sender_id, follower_id } = data;
+      const { type, link, post_id, project_id, sender_id, follower_id, conversation_id } = data;
 
       switch (type) {
         case 'post_interaction':
@@ -221,6 +221,10 @@ function handleNotificationNavigation(data) {
  * Remove notification listeners
  */
 export function removeNotificationListeners(listeners) {
-  listeners?.notificationListener?.remove?.();
-  listeners?.responseListener?.remove?.();
+  if (listeners?.notificationListener) {
+    listeners.notificationListener.remove();
+  }
+  if (listeners?.responseListener) {
+    listeners.responseListener.remove();
+  }
 }
