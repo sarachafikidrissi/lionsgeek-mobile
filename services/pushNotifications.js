@@ -237,7 +237,7 @@ function handleNotificationNavigation(data) {
   try {
     // Dynamic import to avoid circular dependencies
     import('expo-router').then(({ router }) => {
-      const { type, link, post_id, project_id, sender_id, follower_id } = data;
+      const { type, link, post_id, project_id, sender_id, follower_id, conversation_id } = data;
 
       // Navigate based on notification type
       switch (type) {
@@ -317,9 +317,9 @@ function handleNotificationNavigation(data) {
  */
 export function removeNotificationListeners(listeners) {
   if (listeners?.notificationListener) {
-    Notifications.removeNotificationSubscription(listeners.notificationListener);
+    listeners.notificationListener.remove();
   }
   if (listeners?.responseListener) {
-    Notifications.removeNotificationSubscription(listeners.responseListener);
+    listeners.responseListener.remove();
   }
 }
