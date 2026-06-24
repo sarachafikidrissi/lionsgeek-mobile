@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter, router as routerDirect } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppContext } from '@/context';
 import API from '@/api';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -9,6 +10,25 @@ import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import Skeleton from '@/components/ui/Skeleton';
+import { getUserRolesNormalized } from '@/components/helpers/helpers';
+
+const STAFF_ROLES = ['admin', 'super_admin', 'coach', 'moderateur', 'studio_responsable'];
+const NETWORK_RESTRICTED_FALLBACK = "You're not on school WiFi. Connect to school WiFi to check in.";
+const SAVE_RESTRICTED_FALLBACK = 'Connect to school WiFi to check in, then scan again.';
+const CHECKIN_UNAVAILABLE_TITLE = 'Check-In Unavailable';
+const CHECKIN_UNAVAILABLE_MESSAGE = 'Attendance check-in is temporarily unavailable. Please contact a staff member.';
+const CHECKIN_UNAVAILABLE_BANNER = 'Attendance check-in is temporarily unavailable. Contact staff.';
+
+const getApiMessage = (error, fallback) => {
+  const message = error?.response?.data?.message;
+  return typeof message === 'string' && message.trim() ? message : fallback;
+};
+
+const isStaffUser = (user) => {
+  const roles = getUserRolesNormalized(user);
+  return roles.some((role) => STAFF_ROLES.includes(role));
+};
+
 export default function QRScanner() {
   const { id, trainingId } = useLocalSearchParams();
   const colorScheme = useColorScheme();
@@ -16,8 +36,18 @@ export default function QRScanner() {
   const routerHook = useRouter();
   const { token, user } = useAppContext();
   const scanLockRef = useRef(false);
-  // Safe router navigation function - use hook first, fallback to direct import
-  const navigateToTraining = () => {
+  const pendingSaveRef = useRef(null);
+
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [training, setTraining] = useState(null);
+  const [networkStatus, setNetworkStatus] = useState(null);
+  const [networkMessage, setNetworkMessage] = useState('');
+
+
+
+  const navigateToTraining = useCallback(() => {
     try {
       const routerToUse = routerHook || routerDirect;
       if (routerToUse) {
@@ -34,12 +64,109 @@ export default function QRScanner() {
     } catch (error) {
       console.error('Navigation error:', error);
     }
-  };
+  }, [routerHook]);
 
-  const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [training, setTraining] = useState(null);
+  const resetScanner = useCallback(() => {
+    setScanned(false);
+    setProcessing(false);
+    scanLockRef.current = false;
+  }, []);
+
+  const showAttendanceSuccess = useCallback((statusMessage, periodName) => {
+    Alert.alert(
+      'Attendance Marked',
+      `You have been marked as ${statusMessage} for the ${periodName} period.`,
+      [{ text: 'OK', onPress: navigateToTraining }]
+    );
+  }, [navigateToTraining]);
+
+  const checkNetwork = useCallback(async () => {
+    if (!token || isStaffUser(user)) {
+      setNetworkStatus(null);
+      setNetworkMessage('');
+      return;
+    }
+
+    setNetworkStatus('checking');
+    try {
+      await API.getWithAuth('mobile/attendance/network-check', token);
+      setNetworkStatus('ok');
+      setNetworkMessage('');
+    } catch (err) {
+      if (err?.response?.status === 403) {
+        setNetworkStatus('restricted');
+        setNetworkMessage(getApiMessage(err, NETWORK_RESTRICTED_FALLBACK));
+      } else if (err?.response?.status === 503) {
+        setNetworkStatus('unavailable');
+        setNetworkMessage(CHECKIN_UNAVAILABLE_BANNER);
+      } else {
+        setNetworkStatus(null);
+        setNetworkMessage('');
+      }
+    }
+  }, [token, user]);
+
+  const handleSaveUnavailable = useCallback(() => {
+    Alert.alert(
+      CHECKIN_UNAVAILABLE_TITLE,
+      CHECKIN_UNAVAILABLE_MESSAGE,
+      [{ text: 'OK', onPress: resetScanner }]
+    );
+  }, [resetScanner]);
+
+  const handleSaveRestricted = useCallback((saveError) => {
+    const message = getApiMessage(saveError, SAVE_RESTRICTED_FALLBACK);
+
+    Alert.alert(
+      'Cannot Check In',
+      message,
+      [
+        { text: 'OK', onPress: resetScanner },
+        {
+          text: 'Retry',
+          onPress: async () => {
+            const pending = pendingSaveRef.current;
+            if (!pending || !token) {
+              resetScanner();
+              return;
+            }
+
+            setProcessing(true);
+            try {
+              await API.getWithAuth('mobile/attendance/network-check', token);
+              setNetworkStatus('ok');
+              setNetworkMessage('');
+
+              await API.postWithAuth('mobile/attendance/save', {
+                attendance: pending.payload,
+              }, token);
+
+              pendingSaveRef.current = null;
+              setProcessing(false);
+              showAttendanceSuccess(pending.statusMessage, pending.periodName);
+            } catch (retryError) {
+              setProcessing(false);
+              if (retryError?.response?.status === 403) {
+                handleSaveRestricted(retryError);
+              } else if (retryError?.response?.status === 503) {
+                handleSaveUnavailable();
+              } else {
+                console.error('Retry save error:', retryError);
+                Alert.alert('Error', 'Failed to save attendance. Please try again.');
+                resetScanner();
+              }
+            }
+          },
+        },
+      ]
+    );
+  }, [token, resetScanner, showAttendanceSuccess, handleSaveUnavailable]);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkNetwork();
+    }, [checkNetwork])
+  );
 
   // The training ID from the route params (either id or trainingId)
   const currentTrainingId = id || trainingId;
@@ -123,17 +250,14 @@ export default function QRScanner() {
 
       if (!qrData.training_id || !qrData.date) {
         Alert.alert('Invalid QR Code', 'The QR code does not contain valid training information.');
-        setScanned(false);
-        setProcessing(false);
-        scanLockRef.current = false;
+        resetScanner();
         return;
       }
 
       // If we have a currentTrainingId from route params, verify it matches
       if (currentTrainingId && parseInt(qrData.training_id) !== parseInt(currentTrainingId)) {
         Alert.alert('Invalid Training', 'This QR code is for a different training.');
-        setScanned(false);
-        setProcessing(false);
+        resetScanner();
         return;
       }
 
@@ -141,16 +265,14 @@ export default function QRScanner() {
       const today = new Date().toISOString().split('T')[0];
       if (qrData.date !== today) {
         Alert.alert('Expired QR Code', 'This QR code is not valid for today.');
-        setScanned(false);
-        setProcessing(false);
+        resetScanner();
         return;
       }
 
       // Verify user is enrolled in training
       if (!user || !user.id) {
         Alert.alert('Error', 'User information not available. Please log in again.');
-        setScanned(false);
-        setProcessing(false);
+        resetScanner();
         return;
       }
 
@@ -167,8 +289,7 @@ export default function QRScanner() {
 
       if (!trainingData || !trainingData.users || !trainingData.users.some(u => u.id === userId)) {
         Alert.alert('Not Enrolled', 'You are not enrolled in this training.');
-        setScanned(false);
-        setProcessing(false);
+        resetScanner();
         return;
       }
 
@@ -201,13 +322,7 @@ export default function QRScanner() {
         Alert.alert(
           'Outside Training Hours',
           'You are scanning outside of training periods. Attendance cannot be marked.',
-          [{
-            text: 'OK', onPress: () => {
-              setScanned(false);
-              setProcessing(false);
-              scanLockRef.current = false;
-            }
-          }]
+          [{ text: 'OK', onPress: resetScanner }]
         );
         return;
       }
@@ -224,15 +339,13 @@ export default function QRScanner() {
       } catch (error) {
         console.error('Error creating attendance:', error);
         Alert.alert('Error', 'Failed to create attendance record.');
-        setScanned(false);
-        setProcessing(false);
+        resetScanner();
         return;
       }
 
       if (!attendanceResponse?.data?.attendance_id) {
         Alert.alert('Error', 'Failed to get attendance record.');
-        setScanned(false);
-        setProcessing(false);
+        resetScanner();
         return;
       }
 
@@ -292,29 +405,38 @@ export default function QRScanner() {
           : `QR Code scan at ${format(now, 'HH:mm')}`,
       }];
 
-      // Save attendance - backend will match user_id from token
-      await API.postWithAuth('mobile/attendance/save', {
-        attendance: attendancePayload,
-      }, token);
-
       const statusMessage = status === 'present' ? 'Present' : status === 'late' ? 'Late' : 'Absent';
       const periodName = period.period.charAt(0).toUpperCase() + period.period.slice(1);
 
-      Alert.alert(
-        'Attendance Marked',
-        `You have been marked as ${statusMessage} for the ${periodName} period.`,
-        [
-          {
-            text: 'OK',
-            onPress: navigateToTraining
-          }
-        ]
-      );
+      pendingSaveRef.current = {
+        payload: attendancePayload,
+        statusMessage,
+        periodName,
+      };
+
+      try {
+        await API.postWithAuth('mobile/attendance/save', {
+          attendance: attendancePayload,
+        }, token);
+      } catch (saveError) {
+        if (saveError?.response?.status === 403) {
+          handleSaveRestricted(saveError);
+          return;
+        }
+        if (saveError?.response?.status === 503) {
+          handleSaveUnavailable();
+          return;
+        }
+        throw saveError;
+      }
+
+      pendingSaveRef.current = null;
+
+      showAttendanceSuccess(statusMessage, periodName);
     } catch (error) {
       console.error('QR Scan Error:', error);
       Alert.alert('Error', 'Failed to process QR code. Please try again.');
-      setScanned(false);
-      setProcessing(false);
+      resetScanner();
     }
   };
 
@@ -373,6 +495,30 @@ export default function QRScanner() {
             <Text style={styles.headerTitle}>Scan QR Code</Text>
             <View style={{ width: 40 }} />
           </View>
+
+          {networkStatus === 'restricted' && (
+            <View style={styles.networkBannerRestricted}>
+              <Ionicons name="wifi-outline" size={18} color={Colors.light} />
+              <Text style={styles.networkBannerText}>{networkMessage}</Text>
+              <Pressable onPress={checkNetwork} style={styles.networkBannerAction}>
+                <Text style={styles.networkBannerActionText}>Check again</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {networkStatus === 'unavailable' && (
+            <View style={styles.networkBannerUnavailable}>
+              <Ionicons name="alert-circle-outline" size={18} color={Colors.light} />
+              <Text style={styles.networkBannerText}>{networkMessage}</Text>
+            </View>
+          )}
+
+          {networkStatus === 'ok' && (
+            <View style={styles.networkBannerOk}>
+              <Ionicons name="wifi" size={16} color={Colors.good} />
+              <Text style={styles.networkBannerOkText}>On school WiFi</Text>
+            </View>
+          )}
 
           {/* Scanning Frame */}
           <View style={styles.scanFrame}>
@@ -440,6 +586,63 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  networkBannerRestricted: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 152, 0, 0.92)',
+  },
+  networkBannerUnavailable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(80, 80, 80, 0.92)',
+  },
+  networkBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light,
+    lineHeight: 18,
+  },
+  networkBannerAction: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  networkBannerActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light,
+  },
+  networkBannerOk: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  networkBannerOkText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.good,
   },
   scanFrame: {
     width: 250,
