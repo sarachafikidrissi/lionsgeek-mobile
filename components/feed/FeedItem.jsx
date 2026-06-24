@@ -374,7 +374,7 @@ function RepostIcon({ size = 26, color, strokeWidth = 2 }) {
   );
 }
 
-export default function FeedItem({ item, onPress }) {
+export default function FeedItem({ item, onPress, initialFocusCommentId = null }) {
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -443,6 +443,17 @@ export default function FeedItem({ item, onPress }) {
   const [sendLoading, setSendLoading] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [sendSending, setSendSending] = useState(false);
+
+  const resolvedFocusCommentId = useMemo(() => {
+    if (initialFocusCommentId == null || initialFocusCommentId === '') return null;
+    const n = Number(initialFocusCommentId);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [initialFocusCommentId]);
+
+  useEffect(() => {
+    if (resolvedFocusCommentId == null) return;
+    setShowComments(true);
+  }, [resolvedFocusCommentId]);
 
   const avatarUrl = resolveAvatarUrl(
     sourcePost?.user?.avatar ||
@@ -553,6 +564,10 @@ export default function FeedItem({ item, onPress }) {
       const next = res?.data?.saved;
       if (typeof next === 'boolean') {
         setSaved(next);
+      }
+      const finalSaved = typeof next === 'boolean' ? next : !wasSaved;
+      if (typeof item.onBookmarkChange === 'function') {
+        item.onBookmarkChange(finalSaved);
       }
     } catch (_error) {
       setSaved(wasSaved);
@@ -1054,6 +1069,7 @@ export default function FeedItem({ item, onPress }) {
         visible={showComments}
         postId={effectivePostId}
         postAuthorName={displayName}
+        focusCommentId={resolvedFocusCommentId}
         onClose={() => setShowComments(false)}
         onCommentCountChange={(change) => {
           // change can be a delta number OR { set: number } for server-truth sync

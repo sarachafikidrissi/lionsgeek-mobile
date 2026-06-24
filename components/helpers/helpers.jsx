@@ -94,3 +94,66 @@ export function userHasAdminRole(user) {
   return getUserRolesNormalized(user).includes('admin');
 }
 
+/** Raw array from GET mobile/posts/saved (or similar) response */
+export function parseSavedPostsFromApiResponse(res) {
+  const raw =
+    res?.data?.posts ??
+    res?.data?.data ??
+    res?.data ??
+    [];
+  return Array.isArray(raw) ? raw : [];
+}
+
+/** Normalize one saved post for feed UI (matches profile saved-posts tab). */
+export function normalizeSavedPost(post) {
+  if (!post || typeof post !== 'object') return null;
+
+  const body =
+    post?.body ??
+    post?.content ??
+    post?.text ??
+    post?.caption ??
+    post?.description ??
+    post?.message ??
+    post?.post_body ??
+    post?.postBody ??
+    null;
+
+  const author = post?.user ?? post?.author ?? null;
+  const authorAvatar = author?.avatar || post?.user_avatar || post?.author_avatar;
+  const authorImage = author?.image || post?.user_image || post?.author_image;
+
+  const avatarUrl = resolveAvatarUrl(authorAvatar || authorImage);
+  const mediaUrl = resolvePostMediaUrl(post);
+
+  return {
+    ...post,
+    body,
+    user: author
+      ? {
+          ...author,
+          avatar: avatarUrl,
+          image: authorImage ?? author?.image ?? null,
+        }
+      : post?.user,
+    userAvatar: avatarUrl,
+    postImage: mediaUrl,
+    image: mediaUrl,
+    is_saved_by_user: post?.is_saved_by_user ?? true,
+  };
+}
+
+export function normalizeSavedPostsList(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter(Boolean)
+    .map(normalizeSavedPost)
+    .filter(Boolean);
+}
+
+// True when the user may access Events / Info Session scan flows (admin or explicit grant).
+export function userCanAccessScan(user) {
+  if (userHasAdminRole(user)) return true;
+  const flag = user?.access_scan;
+  return flag === 1 || flag === true || flag === '1';
+}
+

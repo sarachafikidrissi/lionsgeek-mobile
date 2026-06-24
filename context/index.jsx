@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useEffect } from "react";
-import { useColorScheme } from "react-native";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { View, useColorScheme } from "react-native";
 import { colorScheme as nwColorScheme } from "nativewind";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import ThemeTransitionOverlay from "@/components/theme/ThemeTransitionOverlay";
 
 const THEME_STORAGE_KEY = 'app_theme_preference';
 
@@ -14,6 +15,7 @@ const AppProvider = ({ children }) => {
     // Mirror NativeWind's reactive colorScheme into local state so consumers re-render on toggle
     const systemScheme = useColorScheme();
     const [colorScheme, setColorSchemeState] = useState(systemScheme ?? 'light');
+    const themeTransitionRef = useRef(null);
 
     useEffect(() => {
         (async () => {
@@ -86,19 +88,24 @@ const AppProvider = ({ children }) => {
         await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
     };
 
-    /**
-     * Applies and persists a theme change ('dark' | 'light').
-     * Uses NativeWind's colorScheme singleton so all dark: classes update immediately.
-     */
-    const setTheme = async (theme) => {
-        nwColorScheme.set(theme);
+    const applyTheme = useCallback((theme) => {
         setColorSchemeState(theme);
-        try {
-            await AsyncStorage.setItem(THEME_STORAGE_KEY, theme);
-        } catch (error) {
+        nwColorScheme.set(theme);
+        AsyncStorage.setItem(THEME_STORAGE_KEY, theme).catch((error) => {
             console.error('[CONTEXT] Failed to persist theme:', error);
+        });
+    }, []);
+
+    /** Sun/moon fullscreen transition (1s) then apply theme; falls back to instant apply. */
+    const setTheme = useCallback((theme) => {
+        if (theme !== 'dark' && theme !== 'light') return;
+        if (theme === colorScheme) return;
+        if (themeTransitionRef.current?.animate) {
+            themeTransitionRef.current.animate(theme);
+            return;
         }
-    };
+        applyTheme(theme);
+    }, [colorScheme, applyTheme]);
 
     const appValue = {
         language,
@@ -110,7 +117,18 @@ const AppProvider = ({ children }) => {
         saveAuth,
         signOut,
     };
-    return <appContext.Provider value={appValue}>{children}</appContext.Provider>;
+    return (
+        <appContext.Provider value={appValue}>
+            <View style={{ flex: 1 }}>
+                {children}
+                <ThemeTransitionOverlay
+                    ref={themeTransitionRef}
+                    colorScheme={colorScheme}
+                    onApplyTheme={applyTheme}
+                />
+            </View>
+        </appContext.Provider>
+    );
 };
 
 const useAppContext = () => useContext(appContext);

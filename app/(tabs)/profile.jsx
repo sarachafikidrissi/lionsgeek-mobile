@@ -35,6 +35,8 @@ import {
   resolveAvatarUrl,
   resolvePostMediaUrl,
   resolveCoverUrl,
+  parseSavedPostsFromApiResponse,
+  normalizeSavedPostsList,
 } from '@/components/helpers/helpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -1493,51 +1495,8 @@ export default function ProfileScreen() {
     try {
       // Canonical endpoint (implemented in backend): GET /api/mobile/posts/saved
       const res = await API.getWithAuth('mobile/posts/saved', token);
-      const raw =
-        res?.data?.posts ??
-        res?.data?.data ??
-        res?.data ??
-        [];
-      const list = Array.isArray(raw) ? raw : [];
-
-      const normalized = (Array.isArray(list) ? list : [])
-        .filter(Boolean)
-        .map((post) => {
-          const body =
-            post?.body ??
-            post?.content ??
-            post?.text ??
-            post?.caption ??
-            post?.description ??
-            post?.message ??
-            post?.post_body ??
-            post?.postBody ??
-            null;
-
-          const author = post?.user ?? post?.author ?? null;
-          const authorAvatar = author?.avatar || post?.user_avatar || post?.author_avatar;
-          const authorImage = author?.image || post?.user_image || post?.author_image;
-
-          const avatarUrl = resolveAvatarUrl(authorAvatar || authorImage);
-          const mediaUrl = resolvePostMediaUrl(post);
-
-          return {
-            ...post,
-            body,
-            user: author
-              ? {
-                  ...author,
-                  avatar: avatarUrl,
-                  image: authorImage ?? author?.image ?? null,
-                }
-              : post?.user,
-            userAvatar: avatarUrl,
-            postImage: mediaUrl,
-            image: mediaUrl,
-          };
-        });
-
-      setSavedPosts(normalized);
+      const list = parseSavedPostsFromApiResponse(res);
+      setSavedPosts(normalizeSavedPostsList(list));
     } catch (err) {
       console.error('[PROFILE] fetch saved posts error:', err);
       setSavedPosts([]);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -48,6 +48,30 @@ function sortByNewestFirst(items) {
     }));
 }
 
+/** Where to scroll / expand when deep-linking to a comment (supports nested replies). */
+function findCommentFocus(comments, targetId) {
+  const tid = Number(targetId);
+  if (!Number.isFinite(tid) || !Array.isArray(comments)) return null;
+  for (let i = 0; i < comments.length; i++) {
+    if (Number(comments[i].id) === tid) {
+      return { rootIndex: i, isReply: false };
+    }
+    if (repliesContainId(comments[i].replies, tid)) {
+      return { rootIndex: i, isReply: true };
+    }
+  }
+  return null;
+}
+
+function repliesContainId(replies, tid) {
+  if (!Array.isArray(replies)) return false;
+  for (const r of replies) {
+    if (Number(r.id) === tid) return true;
+    if (repliesContainId(r.replies, tid)) return true;
+  }
+  return false;
+}
+
 // ─── Avatar ──────────────────────────────────────────────────────────────────
 
 function Avatar({ value, name, size = 36, isDark }) {
@@ -89,12 +113,20 @@ function CommentRow({
   onReply,
   currentUserId,
   onOpenMenu,
+  highlightCommentId,
+  expandReplies = false,
 }) {
   const [liked, setLiked]       = useState(Boolean(comment.is_liked_by_user));
   const [likeCount, setLikeCount] = useState(comment.likes_count ?? 0);
   const [showReplies, setShowReplies] = useState(false);
 
+  useEffect(() => {
+    if (expandReplies) setShowReplies(true);
+  }, [expandReplies]);
+
   const bubbleBg = isDark ? '#2a2a2a' : '#f3f2ef';
+  const isHighlighted =
+    highlightCommentId != null && Number(highlightCommentId) === Number(comment.id);
   const isMyComment =
     currentUserId != null &&
     comment?.user?.id != null &&
@@ -140,11 +172,15 @@ function CommentRow({
             android_ripple={isMyComment ? { color: isDark ? '#3a3a3a' : '#e7e4df' } : undefined}
             style={({ pressed }) => ([
               {
-                backgroundColor: bubbleBg,
+                backgroundColor: isHighlighted
+                  ? (isDark ? 'rgba(255, 200, 0, 0.16)' : 'rgba(255, 200, 0, 0.28)')
+                  : bubbleBg,
                 borderRadius: 14,
                 paddingHorizontal: 12,
                 paddingVertical: 8,
                 opacity: pressed && isMyComment ? 0.92 : 1,
+                borderWidth: isHighlighted ? 2 : 0,
+                borderColor: isHighlighted ? '#ffc801' : 'transparent',
               },
             ])}
           >
@@ -214,6 +250,7 @@ function CommentRow({
               onReply={() => {}}
               currentUserId={currentUserId}
               onOpenMenu={onOpenMenu}
+              highlightCommentId={highlightCommentId}
             />
           ))}
         </View>
@@ -224,7 +261,13 @@ function CommentRow({
 
 // ─── CommentsModal ────────────────────────────────────────────────────────────
 
-export default function CommentsModal({ visible, postId, onClose, onCommentCountChange }) {
+export default function CommentsModal({
+  visible,
+  postId,
+  onClose,
+  onCommentCountChange,
+  focusCommentId = null,
+}) {
   const { token, user } = useAppContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -239,6 +282,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
 
   const flatListRef = useRef(null);
   const inputRef    = useRef(null);
+  const didScrollToFocusRef = useRef(false);
 
   const bgColor     = isDark ? '#1c1c1c' : '#ffffff';
   const handleColor = isDark ? '#444'    : '#d0cdc8';
@@ -253,6 +297,47 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
   useEffect(() => {
     if (visible && postId) fetchComments();
   }, [visible, postId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!visible) {
+      didScrollToFocusRef.current = false;
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    didScrollToFocusRef.current = false;
+  }, [focusCommentId]);
+
+  const focusMeta = useMemo(() => {
+    if (!focusCommentId || !comments.length) return null;
+    return findCommentFocus(comments, focusCommentId);
+  }, [comments, focusCommentId]);
+
+  useEffect(() => {
+    if (!visible || loading || !focusCommentId || comments.length === 0 || didScrollToFocusRef.current) {
+      return;
+    }
+    const meta = findCommentFocus(comments, focusCommentId);
+    if (!meta || meta.rootIndex < 0 || meta.rootIndex >= comments.length) {
+      didScrollToFocusRef.current = true;
+      return;
+    }
+
+    didScrollToFocusRef.current = true;
+    const runScroll = () => {
+      try {
+        flatListRef.current?.scrollToIndex({
+          index: meta.rootIndex,
+          animated: true,
+          viewPosition: 0.12,
+        });
+      } catch {
+        // ignore
+      }
+    };
+    const t = setTimeout(runScroll, 420);
+    return () => clearTimeout(t);
+  }, [visible, loading, focusCommentId, comments]);
 
   const fetchComments = async () => {
     setLoading(true);
@@ -548,7 +633,7 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
             ref={flatListRef}
             data={comments}
             keyExtractor={item => String(item.id)}
-            renderItem={({ item }) => (
+            renderItem={({ item, index }) => (
               <CommentRow
                 comment={item}
                 isDark={isDark}
@@ -558,8 +643,27 @@ export default function CommentsModal({ visible, postId, onClose, onCommentCount
                 onReply={handleReply}
                 currentUserId={user?.id}
                 onOpenMenu={openMenu}
+                highlightCommentId={focusCommentId}
+                expandReplies={Boolean(
+                  focusMeta &&
+                    focusMeta.isReply &&
+                    focusMeta.rootIndex === index,
+                )}
               />
             )}
+            onScrollToIndexFailed={(info) => {
+              setTimeout(() => {
+                try {
+                  flatListRef.current?.scrollToIndex({
+                    index: info.index,
+                    animated: true,
+                    viewPosition: 0.12,
+                  });
+                } catch {
+                  // ignore
+                }
+              }, 120);
+            }}
             ListEmptyComponent={
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <Ionicons name="chatbubble-ellipses-outline" size={36} color={mutedColor} />

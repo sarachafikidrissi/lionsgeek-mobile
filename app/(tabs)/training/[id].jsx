@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Image, Pressable, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import API from '@/api';
@@ -8,7 +8,7 @@ import { useAppContext } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import Skeleton from '@/components/ui/Skeleton';
-import { userHasAdminRole } from '@/components/helpers/helpers';
+import { getUserRolesNormalized, userHasAdminRole } from '@/components/helpers/helpers';
 
 export default function TrainingDetails() {
   const { id } = useLocalSearchParams();
@@ -20,6 +20,27 @@ export default function TrainingDetails() {
   const [loading, setLoading] = useState(true);
   const { token, user: currentUser } = useAppContext();
   const showUserEmails = userHasAdminRole(currentUser);
+
+  const roles = useMemo(() => {
+    const fromHelper = getUserRolesNormalized(currentUser);
+    if (fromHelper.length) return fromHelper;
+    const r = currentUser?.role;
+    if (Array.isArray(r)) return r.map((x) => String(x).toLowerCase());
+    if (r != null && r !== '') return [String(r).toLowerCase()];
+    return [];
+  }, [currentUser]);
+
+  const uid = currentUser?.id != null ? Number(currentUser.id) : null;
+  const isPrivilegedTrainingViewer = roles.some((r) =>
+    ['admin', 'coach', 'super_admin', 'moderateur', 'studio_responsable'].includes(r),
+  );
+  const isCoachOfTraining = training && uid != null && Number(training.coach?.id) === uid;
+  const isEnrolledInTraining =
+    training &&
+    uid != null &&
+    (Number(currentUser?.formation_id) === Number(training.id) ||
+      (Array.isArray(training.users) && training.users.some((u) => Number(u.id) === uid)));
+  const showAttendanceHistory = Boolean(training && (isEnrolledInTraining || isCoachOfTraining || isPrivilegedTrainingViewer));
 
   useEffect(() => {
     const fetchTraining = async () => {
@@ -231,6 +252,52 @@ export default function TrainingDetails() {
             </Pressable>
           </View>
         )}
+
+        {showAttendanceHistory ? (
+          <View className="mb-6">
+            <Pressable
+              onPress={() =>
+                router.push({ pathname: '/attendance-history', params: { id: String(training.id) } })
+              }
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                backgroundColor: isDark ? Colors.dark_gray : Colors.light,
+                paddingVertical: 14,
+                paddingHorizontal: 18,
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderColor: Colors.alpha,
+              }}
+            >
+              <Ionicons name="reader-outline" size={22} color={Colors.alpha} />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: '800',
+                    color: isDark ? Colors.light : Colors.beta,
+                  }}
+                >
+                  Attendance history
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '600',
+                    marginTop: 2,
+                    color: isDark ? Colors.light + '99' : Colors.beta + '99',
+                  }}
+                >
+                  M · L · E by day (newest first)
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={isDark ? Colors.light + '66' : Colors.beta + '55'} />
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Students */}
         <View className="mb-6">
