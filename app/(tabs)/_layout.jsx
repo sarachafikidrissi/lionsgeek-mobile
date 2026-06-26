@@ -77,6 +77,7 @@ export default function TabLayout() {
     { route: "events", name: "Events", icon: "ticket" },
     { route: "leaderboard", name: "Leaderboard", icon: "trophy.fill" },
     { route: "profile", name: "Profile", icon: "person.fill" },
+    { route: "test", name: "notifications", icon: "bell.fill" },
   ];
   
   const hiddenScreens = [
