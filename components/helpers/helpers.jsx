@@ -150,6 +150,32 @@ export function normalizeSavedPostsList(list) {
     .filter(Boolean);
 }
 
+/** Stable React key for a feed row (repost entries may share the same underlying post id). */
+export function getFeedItemKey(post, index = 0) {
+  const candidate =
+    post?.feedKey ??
+    post?.repost_entry_id ??
+    post?.interaction_post_id ??
+    post?.feed_entry_id ??
+    post?.id;
+  return candidate != null && candidate !== '' ? String(candidate) : `feed-${index}`;
+}
+
+/** Assigns a unique `feedKey` on each post (API feed can contain duplicate ids). */
+export function assignUniqueFeedKeys(posts) {
+  const seen = new Set();
+  return (Array.isArray(posts) ? posts : []).map((post, index) => {
+    let key = getFeedItemKey(post, index);
+    let suffix = 0;
+    while (seen.has(key)) {
+      suffix += 1;
+      key = `${getFeedItemKey(post, index)}-${suffix}`;
+    }
+    seen.add(key);
+    return { ...post, feedKey: key };
+  });
+}
+
 // True when the user may access Events / Info Session scan flows (admin or explicit grant).
 export function userCanAccessScan(user) {
   if (userHasAdminRole(user)) return true;

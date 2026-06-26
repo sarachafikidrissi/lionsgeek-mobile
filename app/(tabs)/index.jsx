@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AppLayout from '@/components/layout/AppLayout';
 import API from '@/api';
 import Skeleton from '@/components/ui/Skeleton';
+import { assignUniqueFeedKeys } from '@/components/helpers/helpers';
 
 export default function HomeScreen() {
   const { user, token } = useAppContext();
@@ -94,7 +95,7 @@ export default function HomeScreen() {
         const feedData = response.data.feed || response.data.posts || [];
         console.log('[HOME] Feed items found:', feedData.length);
         
-        const feedPosts = feedData.map(post => {
+        const feedPosts = assignUniqueFeedKeys(feedData.map(post => {
           // Get user avatar and image from various possible fields
           const userAvatar = post.user?.avatar || post.author?.avatar || post.user_avatar || post.author_avatar;
           const userImage = post.user?.image || post.author?.image || post.user_image || post.author_image;
@@ -142,7 +143,7 @@ export default function HomeScreen() {
             image: normalizedImage, // Keep for backward compatibility
             onRepost: handleRepost,
           };
-        });
+        }));
         setPosts(feedPosts);
       } else {
         // Fallback to hardcoded posts if no data
@@ -201,13 +202,15 @@ export default function HomeScreen() {
   };
 
   const handlePostCreated = (newPost) => {
-    setPosts(prevPosts => [
-      {
-        ...newPost,
-        onRepost: handleRepost,
-      },
-      ...prevPosts,
-    ]);
+    setPosts(prevPosts =>
+      assignUniqueFeedKeys([
+        {
+          ...newPost,
+          onRepost: handleRepost,
+        },
+        ...prevPosts,
+      ])
+    );
   };
 
   return (
@@ -302,7 +305,7 @@ export default function HomeScreen() {
         ) : (
           posts.map((item) => (
             <FeedItem
-              key={item.id}
+              key={item.feedKey ?? item.id}
               item={{
                 ...item,
                 onRepost: handleRepost,
