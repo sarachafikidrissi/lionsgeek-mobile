@@ -214,6 +214,12 @@ export default function RootLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    if (appReady) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [appReady]);
+
   const onLayoutRootView = useCallback(() => {
     if (appReady) {
       SplashScreen.hideAsync().catch(() => {});

@@ -2,7 +2,7 @@
   "expo": {
     "name": "LionsGeek",
     "slug": "lionsgeek",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "lionsgeek",
@@ -41,7 +41,8 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.WAKE_LOCK"
       ],
-      "package": "com.lionsgeek_pro.lionsgeek"
+      "package": "com.lionsgeek_pro.lionsgeek",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -68,7 +69,8 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#ffffff",
-          "sounds": []
+          "sounds": [],
+          "defaultChannel": "default"
         }
       ],
       "expo-media-library",
