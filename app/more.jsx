@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,27 +8,32 @@ import {
   Switch,
   Alert,
   Platform,
-} from 'react-native';
-import Constants from 'expo-constants';
-import { useAppContext } from '@/context';
-import { router } from 'expo-router';
-import API from '@/api';
-import { Ionicons } from '@expo/vector-icons';
-import AppLayout from '@/components/layout/AppLayout';
-import Skeleton from '@/components/ui/Skeleton';
-import EditProfileModal from '@/components/profile/EditProfileModal';
-import SmoothThemeToggle from '@/components/ui/SmoothThemeToggle';
-import GamerProfileStats from '@/components/more/GamerProfileStats';
-import { resolveAvatarUrl, getUserRolesNormalized } from '@/components/helpers/helpers';
-import { Colors } from '@/constants/Colors';
+} from "react-native";
+import Constants from "expo-constants";
+import { useAppContext } from "@/context";
+import { router } from "expo-router";
+import API from "@/api";
+import { Ionicons } from "@expo/vector-icons";
+import AppLayout from "@/components/layout/AppLayout";
+import Skeleton from "@/components/ui/Skeleton";
+import EditProfileModal from "@/components/profile/EditProfileModal";
+import SmoothThemeToggle from "@/components/ui/SmoothThemeToggle";
+import GamerProfileStats from "@/components/more/GamerProfileStats";
+import {
+  resolveAvatarUrl,
+  getUserRolesNormalized,
+} from "@/components/helpers/helpers";
+import { Colors } from "@/constants/Colors";
 
-const ACCENT = '#F5C518';
-const ACCENT_MUTED = 'rgba(245, 197, 24, 0.85)';
+const ACCENT = "#F5C518";
+const ACCENT_MUTED = "rgba(245, 197, 24, 0.85)";
 /** Tappable row inside a premium settings card. */
 function SoonPill() {
   return (
     <View className="rounded-full border border-alpha/35 bg-alpha/12 px-2 py-0.5 dark:bg-alpha/15">
-      <Text className="text-[9px] font-extrabold uppercase tracking-wide text-alpha">Soon</Text>
+      <Text className="text-[9px] font-extrabold uppercase tracking-wide text-alpha">
+        Soon
+      </Text>
     </View>
   );
 }
@@ -36,7 +41,9 @@ function SoonPill() {
 function ProPill() {
   return (
     <View className="rounded-full bg-alpha px-2 py-0.5">
-      <Text className="text-[9px] font-extrabold uppercase tracking-wide text-beta">Pro</Text>
+      <Text className="text-[9px] font-extrabold uppercase tracking-wide text-beta">
+        Pro
+      </Text>
     </View>
   );
 }
@@ -60,21 +67,24 @@ function SettingRow({
       </View>
     ) : null;
 
-  const rowClass = 'flex-row items-center px-5 py-4';
+  const rowClass = "flex-row items-center px-5 py-4";
   const inner = (
     <>
       <View className="mr-3.5 h-10 w-10 items-center justify-center rounded-xl bg-alpha/12 dark:bg-alpha/15">
-        <Ionicons name={icon} size={20} color={danger ? '#ef4444' : ACCENT} />
+        <Ionicons name={icon} size={20} color={danger ? "#ef4444" : ACCENT} />
       </View>
       <View className="min-w-0 flex-1">
         <Text
-          className={`text-[15px] font-semibold ${danger ? 'text-red-500' : 'text-beta dark:text-white'}`}
+          className={`text-[15px] font-semibold ${danger ? "text-red-500" : "text-beta dark:text-white"}`}
           numberOfLines={1}
         >
           {label}
         </Text>
         {sublabel ? (
-          <Text className="mt-0.5 text-xs font-medium text-black/45 dark:text-white/45" numberOfLines={2}>
+          <Text
+            className="mt-0.5 text-xs font-medium text-black/45 dark:text-white/45"
+            numberOfLines={2}
+          >
             {sublabel}
           </Text>
         ) : null}
@@ -103,7 +113,7 @@ function RowDivider() {
   return <View className="mx-5 h-px bg-black/[0.06] dark:bg-white/10" />;
 }
 
-function SectionLabel({ title, className = '' }) {
+function SectionLabel({ title, className = "" }) {
   return (
     <Text
       className={`mb-2 mt-8 px-5 text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-500 dark:text-[#a89f94] ${className}`}
@@ -123,7 +133,7 @@ function SettingsCard({ children }) {
 
 function NotificationBadge({ count }) {
   if (!count || count < 1) return null;
-  const label = count > 99 ? '99+' : String(count);
+  const label = count > 99 ? "99+" : String(count);
   return (
     <View className="min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-alpha px-1.5">
       <Text className="text-[11px] font-extrabold text-beta">{label}</Text>
@@ -132,8 +142,9 @@ function NotificationBadge({ count }) {
 }
 
 export default function More() {
-  const { user, token, signOut, saveAuth, colorScheme, setTheme } = useAppContext();
-  const isDark = colorScheme === 'dark';
+  const { user, token, signOut, saveAuth, colorScheme, setTheme } =
+    useAppContext();
+  const isDark = colorScheme === "dark";
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -141,7 +152,7 @@ export default function More() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [themeToggleDark, setThemeToggleDark] = useState(isDark);
 
-  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
 
   useEffect(() => {
     if (!token) {
@@ -152,10 +163,10 @@ export default function More() {
 
     const fetchProfile = async () => {
       try {
-        const response = await API.getWithAuth('mobile/profile', token);
+        const response = await API.getWithAuth("mobile/profile", token);
         setProfile(response?.data ?? user);
       } catch (error) {
-        console.error('[MORE] Profile fetch error:', error);
+        console.error("[MORE] Profile fetch error:", error);
         setProfile(user);
       } finally {
         setLoading(false);
@@ -168,7 +179,7 @@ export default function More() {
   const refreshUnread = useCallback(async () => {
     if (!token) return;
     try {
-      const response = await API.getWithAuth('notifications', token);
+      const response = await API.getWithAuth("notifications", token);
       const list = response?.data?.notifications ?? [];
       const unread = list.filter((n) => !n.read_at).length;
       setUnreadNotifications(unread);
@@ -188,29 +199,31 @@ export default function More() {
   const handleThemeToggle = useCallback(
     (value) => {
       setThemeToggleDark(value);
-      setTheme(value ? 'dark' : 'light');
+      setTheme(value ? "dark" : "light");
     },
     [setTheme],
   );
 
   const handleBiometricComingSoon = () => {
-    Alert.alert('Biometric login', 'Biometric unlock will be available in a future update.', [
-      { text: 'OK', style: 'default' },
-    ]);
+    Alert.alert(
+      "Biometric login",
+      "Biometric unlock will be available in a future update.",
+      [{ text: "OK", style: "default" }],
+    );
   };
 
   const handleLogout = () => {
     Alert.alert(
-      'Log out',
-      'Are you sure you want to log out of your account?',
+      "Log out",
+      "Are you sure you want to log out of your account?",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Log out',
-          style: 'destructive',
+          text: "Log out",
+          style: "destructive",
           onPress: async () => {
             await signOut();
-            router.replace('/auth/login');
+            router.replace("/auth/login");
           },
         },
       ],
@@ -219,33 +232,37 @@ export default function More() {
   };
 
   const displayProfile = profile || user;
-  const imageUrl = resolveAvatarUrl(displayProfile?.avatar || displayProfile?.image);
-  const initials = (displayProfile?.name || displayProfile?.username || '?')
-    .split(' ')
+  const imageUrl = resolveAvatarUrl(
+    displayProfile?.avatar || displayProfile?.image,
+  );
+  const initials = (displayProfile?.name || displayProfile?.username || "?")
+    .split(" ")
     .map((n) => n[0])
-    .join('')
+    .join("")
     .slice(0, 2)
     .toUpperCase();
   const rolesFromProfile = getUserRolesNormalized(displayProfile);
   const rolesFromUser = getUserRolesNormalized(user);
-  const roles = [...new Set([...rolesFromProfile, ...rolesFromUser].map((r) => String(r)))];
+  const roles = [
+    ...new Set([...rolesFromProfile, ...rolesFromUser].map((r) => String(r))),
+  ];
   const roleLower = roles.map((r) => String(r).toLowerCase());
-  const canViewMembers = roleLower.some((r) => ['admin', 'coach'].includes(r));
-  const isAdmin = roleLower.includes('admin');
-  const canViewReports = roleLower.some((r) => ['admin', 'coach'].includes(r));
+  const canViewMembers = roleLower.some((r) => ["admin", "coach"].includes(r));
+  const isAdmin = roleLower.includes("admin");
+  const canViewReports = roleLower.some((r) => ["admin", "coach"].includes(r));
 
   const comingSoon = (feature) => () =>
     Alert.alert(
-      'Coming soon',
+      "Coming soon",
       `${feature} will land in a future update. You’re on the early access path.`,
-      [{ text: 'Got it', style: 'default' }],
+      [{ text: "Got it", style: "default" }],
     );
 
   const chevron = (
     <Ionicons
       name="chevron-forward"
       size={18}
-      color={isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.22)'}
+      color={isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.22)"}
     />
   );
 
@@ -259,7 +276,7 @@ export default function More() {
         {/* Profile — centered premium block */}
         <View className="items-center px-6 pb-2 pt-6">
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/profile')}
+            onPress={() => router.push("/(tabs)/profile")}
             activeOpacity={0.82}
             className="items-center"
           >
@@ -272,11 +289,13 @@ export default function More() {
                     <Image
                       source={{ uri: imageUrl }}
                       className="h-[88px] w-[88px] rounded-full border-2 border-alpha"
-                      defaultSource={require('@/assets/images/icon.png')}
+                      defaultSource={require("@/assets/images/icon.png")}
                     />
                   ) : (
                     <View className="h-[88px] w-[88px] items-center justify-center rounded-full border-2 border-alpha bg-alpha/15">
-                      <Text className="text-2xl font-bold text-alpha">{initials}</Text>
+                      <Text className="text-2xl font-bold text-alpha">
+                        {initials}
+                      </Text>
                     </View>
                   )}
                   <View className="absolute -bottom-0.5 -right-0.5 h-7 w-7 items-center justify-center rounded-full border-[2.5px] border-white bg-alpha dark:border-[#0D0C0B]">
@@ -284,7 +303,7 @@ export default function More() {
                   </View>
                 </View>
                 <Text className="text-center text-xl font-bold text-beta dark:text-white">
-                  {displayProfile?.name || displayProfile?.username || 'User'}
+                  {displayProfile?.name || displayProfile?.username || "User"}
                 </Text>
                 <Text className="mt-2 text-center text-[11px] font-bold uppercase tracking-[0.35em] text-alpha">
                   View profile
@@ -292,7 +311,9 @@ export default function More() {
                 <Text className="mt-3 max-w-[260px] text-center text-[10px] leading-4 text-neutral-500 dark:text-white/40">
                   Tip: long-press the Profile tab anytime to open this More hub.
                 </Text>
-                {!loading ? <GamerProfileStats profile={displayProfile} isDark={isDark} /> : null}
+                {!loading ? (
+                  <GamerProfileStats profile={displayProfile} isDark={isDark} />
+                ) : null}
               </>
             )}
           </TouchableOpacity>
@@ -302,12 +323,12 @@ export default function More() {
         <SettingsCard>
           <SettingRow
             nonInteractive
-            icon={themeToggleDark ? 'moon' : 'sunny-outline'}
-            label={themeToggleDark ? 'Coding Mode' : 'Media Mode'}
+            icon={themeToggleDark ? "moon" : "sunny-outline"}
+            label={themeToggleDark ? "Coding Mode" : "Media Mode"}
             sublabel={
               themeToggleDark
-                ? 'Dark theme · optimized for focus & code'
-                : 'Light theme · optimized for media & feed'
+                ? "Dark theme · optimized for focus & code"
+                : "Light theme · optimized for media & feed"
             }
             right={
               <SmoothThemeToggle
@@ -328,7 +349,7 @@ export default function More() {
             sublabel="Photo, name & profile details"
             onPress={() => {
               if (!token) {
-                router.push('/auth/login');
+                router.push("/auth/login");
                 return;
               }
               setShowEditProfile(true);
@@ -340,7 +361,7 @@ export default function More() {
             icon="key-outline"
             label="Reset password"
             sublabel="Current password required · then choose a new one"
-            onPress={() => router.push('/reset-password')}
+            onPress={() => router.push("/reset-password")}
             right={chevron}
           />
           <RowDivider />
@@ -348,7 +369,7 @@ export default function More() {
             icon="mail-unread-outline"
             label="Email & recovery"
             sublabel="Forgot password · we will email you a link"
-            onPress={() => router.push('/auth/forgot-password')}
+            onPress={() => router.push("/auth/forgot-password")}
             right={chevron}
           />
           <RowDivider />
@@ -356,7 +377,7 @@ export default function More() {
             icon="notifications-outline"
             label="Notification preferences"
             sublabel="Inbox categories & system settings"
-            onPress={() => router.push('/notification-preferences')}
+            onPress={() => router.push("/notification-preferences")}
             right={
               <View className="flex-row items-center gap-2">
                 <NotificationBadge count={unreadNotifications} />
@@ -373,7 +394,7 @@ export default function More() {
             icon="bookmark-outline"
             label="Saved posts"
             sublabel="Bookmarks hub — sync when feed API is ready"
-            onPress={() => router.push('/saved-posts')}
+            onPress={() => router.push("/saved-posts")}
             right={chevron}
           />
           <RowDivider />
@@ -381,7 +402,7 @@ export default function More() {
             icon="time-outline"
             label="Recent activity"
             sublabel="Likes, comments, saves, bookings & follows — full trail (no chat)"
-            onPress={() => router.push('/activity')}
+            onPress={() => router.push("/activity")}
             right={chevron}
           />
         </SettingsCard>
@@ -393,7 +414,7 @@ export default function More() {
             icon="ribbon-outline"
             label="Achievements & badges"
             sublabel="Streaks, tiers & milestones"
-            onPress={() => router.push('/achievements')}
+            onPress={() => router.push("/achievements")}
             right={chevron}
             pill={<ProPill />}
           />
@@ -402,7 +423,7 @@ export default function More() {
             icon="school-outline"
             label="Learning journey"
             sublabel="Your process: modules, milestones & rhythm"
-            onPress={() => router.push('/learning-progress')}
+            onPress={() => router.push("/learning-progress")}
             right={chevron}
           />
           <RowDivider />
@@ -410,7 +431,7 @@ export default function More() {
             icon="map-outline"
             label="Study roadmap"
             sublabel="Visual path through your cohort curriculum"
-            onPress={() => router.push('/learning-progress')}
+            onPress={() => router.push("/learning-progress")}
             right={chevron}
             pill={<ProPill />}
           />
@@ -419,7 +440,7 @@ export default function More() {
             icon="medal-outline"
             label="Certificates vault"
             sublabel="Credentials & milestones (share-ready)"
-            onPress={() => router.push('/achievements')}
+            onPress={() => router.push("/achievements")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -432,7 +453,7 @@ export default function More() {
             icon="cube-outline"
             label="Projects hub"
             sublabel="Capstones, briefs & deliveries"
-            onPress={() => router.push('/projects-hub')}
+            onPress={() => router.push("/projects-hub")}
             right={chevron}
           />
           <RowDivider />
@@ -440,11 +461,19 @@ export default function More() {
             icon="clipboard-outline"
             label="Attendance history"
             sublabel="M · L · E by day for your training"
-            onPress={() => router.push('/attendance-history')}
+            onPress={() => router.push("/attendance-history")}
             right={chevron}
           />
+          <RowDivider />
+                    {/* qr scanner */}
+        <SettingRow
+          icon="qr-code-outline"
+          label="Scan QR code"
+          sublabel="Quick check-in to a session"
+          onPress={() => router.push("/(tabs)/training/qr-scanner")}
+          right={chevron}
+        />
         </SettingsCard>
-
         {/* Spaces */}
         <SectionLabel title="Spaces & calendar" />
         <SettingsCard>
@@ -452,7 +481,7 @@ export default function More() {
             icon="calendar-outline"
             label="Studios history"
             sublabel="Only studio reservations you booked"
-            onPress={() => router.push('/reservation-history-studio')}
+            onPress={() => router.push("/reservation-history-studio")}
             right={chevron}
           />
           <RowDivider />
@@ -460,7 +489,7 @@ export default function More() {
             icon="desktop-outline"
             label="Coworking history"
             sublabel="Desks & cowork slots you’ve booked"
-            onPress={() => router.push('/reservation-history-cowork')}
+            onPress={() => router.push("/reservation-history-cowork")}
             right={chevron}
           />
         </SettingsCard>
@@ -472,7 +501,7 @@ export default function More() {
             icon="options-outline"
             label="Customize experience"
             sublabel="Density, alerts roadmap & themes"
-            onPress={() => router.push('/customization')}
+            onPress={() => router.push("/customization")}
             right={chevron}
           />
           <RowDivider />
@@ -480,7 +509,7 @@ export default function More() {
             icon="phone-portrait-outline"
             label="Appearance & layout"
             sublabel="Cards, spacing & hero style"
-            onPress={() => router.push('/customization')}
+            onPress={() => router.push("/customization")}
             right={chevron}
             pill={<ProPill />}
           />
@@ -489,7 +518,7 @@ export default function More() {
             icon="volume-high-outline"
             label="Sound & haptics"
             sublabel="Feedback taps, chimes & focus mode"
-            onPress={comingSoon('Sound & haptics')}
+            onPress={comingSoon("Sound & haptics")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -498,7 +527,7 @@ export default function More() {
             icon="accessibility-outline"
             label="Accessibility"
             sublabel="Text size, contrast & motion"
-            onPress={comingSoon('Accessibility preferences')}
+            onPress={comingSoon("Accessibility preferences")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -511,8 +540,8 @@ export default function More() {
               <Switch
                 value={false}
                 onValueChange={handleBiometricComingSoon}
-                trackColor={{ false: 'rgba(120,120,120,0.35)', true: ACCENT }}
-                thumbColor={Platform.OS === 'android' ? '#fafafa' : undefined}
+                trackColor={{ false: "rgba(120,120,120,0.35)", true: ACCENT }}
+                thumbColor={Platform.OS === "android" ? "#fafafa" : undefined}
                 ios_backgroundColor="rgba(120,120,120,0.35)"
               />
             }
@@ -522,7 +551,7 @@ export default function More() {
             icon="globe-outline"
             label="Language & region"
             sublabel="English · expand locales soon"
-            onPress={comingSoon('Language packs')}
+            onPress={comingSoon("Language packs")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -536,7 +565,7 @@ export default function More() {
               icon="people-outline"
               label="Members directory"
               sublabel="Community roster"
-              onPress={() => router.push('/(tabs)/members')}
+              onPress={() => router.push("/(tabs)/members")}
               right={chevron}
             />
           ) : (
@@ -545,7 +574,13 @@ export default function More() {
               label="Members directory"
               sublabel="Restricted · coach or admin only"
               disabled
-              right={<Ionicons name="lock-closed-outline" size={18} color={ACCENT_MUTED} />}
+              right={
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={18}
+                  color={ACCENT_MUTED}
+                />
+              }
             />
           )}
           <RowDivider />
@@ -553,7 +588,7 @@ export default function More() {
             icon="share-social-outline"
             label="Invite teammates"
             sublabel="Share LionsGeek with your cohort"
-            onPress={comingSoon('Referrals')}
+            onPress={comingSoon("Referrals")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -566,7 +601,7 @@ export default function More() {
             icon="rocket-outline"
             label="Weekly goals"
             sublabel="Set focus targets — ties to Training"
-            onPress={() => router.push('/learning-progress')}
+            onPress={() => router.push("/learning-progress")}
             right={chevron}
             pill={<ProPill />}
           />
@@ -575,7 +610,7 @@ export default function More() {
             icon="link-outline"
             label="Linked sessions"
             sublabel="See where you’re signed in"
-            onPress={comingSoon('Device & session management')}
+            onPress={comingSoon("Device & session management")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -584,7 +619,7 @@ export default function More() {
             icon="cloud-download-outline"
             label="Offline library"
             sublabel="Download lessons for travel mode"
-            onPress={comingSoon('Offline library')}
+            onPress={comingSoon("Offline library")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -593,7 +628,7 @@ export default function More() {
             icon="sync-outline"
             label="Calendar sync"
             sublabel="Push sessions to your device calendar"
-            onPress={comingSoon('Calendar sync')}
+            onPress={comingSoon("Calendar sync")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -602,7 +637,7 @@ export default function More() {
             icon="document-text-outline"
             label="Export my data"
             sublabel="GDPR-friendly data portability"
-            onPress={comingSoon('Data export')}
+            onPress={comingSoon("Data export")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -611,7 +646,7 @@ export default function More() {
             icon="trash-outline"
             label="Clear local cache"
             sublabel="Refresh images & temporary files"
-            onPress={comingSoon('Clear cache')}
+            onPress={comingSoon("Clear cache")}
             right={chevron}
             pill={<SoonPill />}
           />
@@ -620,17 +655,19 @@ export default function More() {
         {/* Admin & coach insights */}
         {canViewReports ? (
           <>
-            <SectionLabel title={isAdmin ? 'Administration' : 'Coach insights'} />
+            <SectionLabel
+              title={isAdmin ? "Administration" : "Coach insights"}
+            />
             <SettingsCard>
               <SettingRow
                 icon="analytics-outline"
                 label="Reports & insights"
                 sublabel={
                   isAdmin
-                    ? 'Attendance, engagement & escalations'
-                    : 'Team pulse, attendance & highlights'
+                    ? "Attendance, engagement & escalations"
+                    : "Team pulse, attendance & highlights"
                 }
-                onPress={() => router.push('/admin-reports')}
+                onPress={() => router.push("/admin-reports")}
                 right={chevron}
                 pill={<ProPill />}
               />
@@ -639,7 +676,7 @@ export default function More() {
                 icon="reader-outline"
                 label="Cohort pulse"
                 sublabel="Live health of promotions"
-                onPress={comingSoon('Cohort pulse')}
+                onPress={comingSoon("Cohort pulse")}
                 right={chevron}
                 pill={<SoonPill />}
               />
@@ -650,7 +687,7 @@ export default function More() {
                     icon="warning-outline"
                     label="Moderation queue"
                     sublabel="Flags & reported content"
-                    onPress={comingSoon('Moderation queue')}
+                    onPress={comingSoon("Moderation queue")}
                     right={chevron}
                     pill={<SoonPill />}
                   />
@@ -669,7 +706,7 @@ export default function More() {
                 icon="people-outline"
                 label="Roster insights"
                 sublabel="Jump into members"
-                onPress={() => router.push('/(tabs)/members')}
+                onPress={() => router.push("/(tabs)/members")}
                 right={chevron}
               />
             </SettingsCard>
@@ -692,7 +729,7 @@ export default function More() {
             icon="chatbox-ellipses-outline"
             label="Send feedback"
             sublabel="Shape the next LionsGeek drop"
-            onPress={() => router.push('/support')}
+            onPress={() => router.push("/support")}
             right={chevron}
             pill={<ProPill />}
           />
@@ -701,7 +738,7 @@ export default function More() {
             icon="help-circle-outline"
             label="Support center"
             sublabel="FAQ & contact"
-            onPress={() => router.push('/support')}
+            onPress={() => router.push("/support")}
             right={chevron}
           />
           <RowDivider />
@@ -709,7 +746,7 @@ export default function More() {
             icon="document-text-outline"
             label="Terms & conditions"
             sublabel="Rules for using the app"
-            onPress={() => router.push('/terms')}
+            onPress={() => router.push("/terms")}
             right={chevron}
           />
           <RowDivider />
@@ -717,7 +754,7 @@ export default function More() {
             icon="shield-outline"
             label="Privacy policy"
             sublabel="How we handle your data"
-            onPress={() => router.push('/privacy')}
+            onPress={() => router.push("/privacy")}
             right={chevron}
           />
           <RowDivider />
@@ -725,7 +762,7 @@ export default function More() {
             icon="code-slash-outline"
             label="Open-source licenses"
             sublabel="Third-party software notices"
-            onPress={() => router.push('/licenses')}
+            onPress={() => router.push("/licenses")}
             right={chevron}
           />
         </SettingsCard>
@@ -738,7 +775,9 @@ export default function More() {
             className="flex-row items-center justify-center rounded-2xl py-4"
           >
             <Ionicons name="log-out-outline" size={22} color="#ef4444" />
-            <Text className="ml-2 text-[16px] font-bold text-red-500">Log out</Text>
+            <Text className="ml-2 text-[16px] font-bold text-red-500">
+              Log out
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -764,7 +803,10 @@ export default function More() {
           setProfile((prev) => ({ ...(prev || user || {}), ...updated }));
           if (token && user) {
             saveAuth(token, { ...user, ...updated }).catch((e) =>
-              console.error('[MORE] Failed to sync user after profile edit:', e),
+              console.error(
+                "[MORE] Failed to sync user after profile edit:",
+                e,
+              ),
             );
           }
         }}
